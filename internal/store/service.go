@@ -152,9 +152,15 @@ func (s *BaseService[T]) List(ctx context.Context, page, pageSize int) ([]T, pag
 const MaxCascadeDepth = 10
 
 type CascadeTarget interface {
-	SoftDeleteByParent(ctx context.Context, parentID int64) error
+	// SoftDeleteByParent soft-deletes the rows owned by parentID and returns the
+	// IDs of the affected rows so the cascade can descend into their own children.
+	// Return an empty slice when a target has no further descendants.
+	SoftDeleteByParent(ctx context.Context, parentID int64) (childIDs []int64, err error)
 }
 
+// CascadeSoftDelete walks the parent's descendants breadth-first, soft-deleting
+// each target's rows level by level. The depth cap guards against deep or cyclic
+// graphs: once the cap is reached, deletion stops descending and logs a warning.
 func CascadeSoftDelete(ctx context.Context, parentID int64, targets []CascadeTarget) error {
 	type entry struct {
 		id    int64
@@ -166,15 +172,21 @@ func CascadeSoftDelete(ctx context.Context, parentID int64, targets []CascadeTar
 		cur := queue[0]
 		queue = queue[1:]
 
-		if cur.depth >= MaxCascadeDepth {
-			slog.Warn("cascade soft-delete depth cap reached",
-				"parent_id", cur.id, "depth", cur.depth, "max", MaxCascadeDepth)
-			continue
-		}
-
 		for _, t := range targets {
-			if err := t.SoftDeleteByParent(ctx, cur.id); err != nil {
+			childIDs, err := t.SoftDeleteByParent(ctx, cur.id)
+			if err != nil {
 				return err
+			}
+			if len(childIDs) == 0 {
+				continue
+			}
+			if cur.depth+1 >= MaxCascadeDepth {
+				slog.WarnContext(ctx, "cascade soft-delete depth cap reached; not descending further",
+					"parent_id", cur.id, "depth", cur.depth, "max", MaxCascadeDepth, "undescended", len(childIDs))
+				continue
+			}
+			for _, cid := range childIDs {
+				queue = append(queue, entry{id: cid, depth: cur.depth + 1})
 			}
 		}
 	}
