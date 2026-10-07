@@ -27,6 +27,21 @@ services:
       timeout: 5s
       retries: 5
 
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      ENV: "local"
+      DATABASE_URL: "postgres://gin_boilerplate:gin_boilerplate@postgres:5432/gin_boilerplate?sslmode=disable"
+      VALKEY_URL: "redis://valkey:6379/0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
 volumes:
   pgdata:
   valkeydata:
