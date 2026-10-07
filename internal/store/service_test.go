@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/apperr"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/pagination"
@@ -150,36 +151,85 @@ func TestHookTracker_PreError_StopsChain(t *testing.T) {
 
 // --- Cascade tests ---
 
-type mockCascade struct {
-	called    int
-	parentIDs []int64
-	err       error
+// treeCascade models a parent->children adjacency map. SoftDeleteByParent returns
+// the children of the given id, so CascadeSoftDelete can walk the whole tree.
+type treeCascade struct {
+	children map[int64][]int64
+	visited  []int64
+	err      error
 }
 
-func (m *mockCascade) SoftDeleteByParent(_ context.Context, parentID int64) error {
-	m.called++
-	m.parentIDs = append(m.parentIDs, parentID)
-	return m.err
+func (c *treeCascade) SoftDeleteByParent(_ context.Context, parentID int64) ([]int64, error) {
+	c.visited = append(c.visited, parentID)
+	if c.err != nil {
+		return nil, c.err
+	}
+	return c.children[parentID], nil
 }
 
 func TestCascadeSoftDelete_CallsTargets(t *testing.T) {
-	c1 := &mockCascade{}
-	c2 := &mockCascade{}
+	c1 := &treeCascade{}
+	c2 := &treeCascade{}
 
 	err := CascadeSoftDelete(context.Background(), 42, []CascadeTarget{c1, c2})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c1.called != 1 || c1.parentIDs[0] != 42 {
-		t.Errorf("c1: called=%d ids=%v", c1.called, c1.parentIDs)
+	if len(c1.visited) != 1 || c1.visited[0] != 42 {
+		t.Errorf("c1 visited=%v", c1.visited)
 	}
-	if c2.called != 1 || c2.parentIDs[0] != 42 {
-		t.Errorf("c2: called=%d ids=%v", c2.called, c2.parentIDs)
+	if len(c2.visited) != 1 || c2.visited[0] != 42 {
+		t.Errorf("c2 visited=%v", c2.visited)
+	}
+}
+
+func TestCascadeSoftDelete_WalksTreeBreadthFirst(t *testing.T) {
+	// 1 -> {2,3}; 2 -> {4}; 3 -> {5}; 4,5 leaves.
+	c := &treeCascade{children: map[int64][]int64{
+		1: {2, 3},
+		2: {4},
+		3: {5},
+	}}
+	if err := CascadeSoftDelete(context.Background(), 1, []CascadeTarget{c}); err != nil {
+		t.Fatal(err)
+	}
+	// Every node, root included, must be visited exactly once.
+	want := map[int64]bool{1: true, 2: true, 3: true, 4: true, 5: true}
+	if len(c.visited) != len(want) {
+		t.Fatalf("visited %v, want all of %v once", c.visited, want)
+	}
+	seen := map[int64]int{}
+	for _, id := range c.visited {
+		seen[id]++
+	}
+	for id := range want {
+		if seen[id] != 1 {
+			t.Errorf("node %d visited %d times, want 1 (visited=%v)", id, seen[id], c.visited)
+		}
+	}
+}
+
+func TestCascadeSoftDelete_DepthCapStopsCycle(t *testing.T) {
+	// Self-referential cycle: 1 -> 1 would loop forever without the depth cap.
+	c := &treeCascade{children: map[int64][]int64{1: {1}}}
+	done := make(chan error, 1)
+	go func() { done <- CascadeSoftDelete(context.Background(), 1, []CascadeTarget{c}) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cascade did not terminate; depth cap failed")
+	}
+	// Bounded by the depth cap, not infinite.
+	if len(c.visited) > MaxCascadeDepth+1 {
+		t.Fatalf("visited %d nodes, want <= %d", len(c.visited), MaxCascadeDepth+1)
 	}
 }
 
 func TestCascadeSoftDelete_TargetError(t *testing.T) {
-	c := &mockCascade{err: errors.New("db fail")}
+	c := &treeCascade{err: errors.New("db fail")}
 	err := CascadeSoftDelete(context.Background(), 1, []CascadeTarget{c})
 	if err == nil {
 		t.Fatal("expected error")
