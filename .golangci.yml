@@ -1,0 +1,86 @@
+version: "2"
+run:
+  go: "1.22"
+  tests: true
+linters:
+  default: none
+  enable:
+    - errcheck
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unused
+  settings:
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+        - hugeParam
+        - exitAfterDefer
+        - unnamedResult
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+    govet:
+      enable:
+        - shadow
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G104
+        - G115
+        - G304
+        - G107
+    revive:
+      rules:
+        - name: var-naming
+        - name: package-comments
+        - name: indent-error-flow
+        - name: error-return
+        - name: error-naming
+        - name: exported
+          arguments:
+            - disableStutteringCheck
+    staticcheck:
+      checks:
+        - "SA*"
+        - "S*"
+        - "ST*"
+        - "QF*"
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - gosec
+          - revive
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      simplify: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
