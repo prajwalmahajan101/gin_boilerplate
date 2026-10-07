@@ -1,0 +1,31 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/bin/server ./cmd/server"
+  bin = "./tmp/bin/server"
+  full_bin = ""
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  exclude_dir = ["assets", "tmp", "vendor", ".git", "migrations", "loadtest", "docs"]
+  exclude_file = []
+  include_dir = ["cmd", "internal"]
+  stop_on_error = true
+  kill_delay = "500ms"
+  rerun_delay = 500
+  send_interrupt = false
+
+[watch]
+  poll_interval = 0
+
+[log]
+  time = true
+  log = "tmp/air.log"
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  clean_on_exit = true
