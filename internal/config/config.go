@@ -12,8 +12,13 @@ const redacted = "***REDACTED***"
 
 type Config struct {
 	// Server
-	Port string `env:"PORT" envDefault:"8080"`
-	Env  string `env:"ENV" envDefault:"local"`
+	Port                string   `env:"PORT" envDefault:"8080"`
+	Env                 string   `env:"ENV" envDefault:"local"`
+	ServerReadTimeoutS  int      `env:"SERVER_READ_TIMEOUT_S" envDefault:"15"`
+	ServerWriteTimeoutS int      `env:"SERVER_WRITE_TIMEOUT_S" envDefault:"15"`
+	ServerIdleTimeoutS  int      `env:"SERVER_IDLE_TIMEOUT_S" envDefault:"60"`
+	ShutdownTimeoutS    int      `env:"SHUTDOWN_TIMEOUT_S" envDefault:"10"`
+	TrustedProxies      []string `env:"TRUSTED_PROXIES" envSeparator:","`
 
 	// Database
 	DatabaseURL      string `env:"DATABASE_URL" envDefault:""`
@@ -53,6 +58,11 @@ type Config struct {
 
 	// AWS
 	SecretsManagerSecretID string `env:"SECRETS_MANAGER_SECRET_ID" envDefault:""`
+}
+
+// IsProd reports whether the server runs in a production environment.
+func (c Config) IsProd() bool {
+	return c.Env == "production"
 }
 
 func (c Config) LogValue() slog.Value {
