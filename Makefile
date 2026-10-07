@@ -46,17 +46,17 @@ vuln: ## Run govulncheck
 	go install golang.org/x/vuln/cmd/govulncheck@latest
 	govulncheck ./...
 
-migrate-up: ## Apply pending migrations (stub -- wired in M4)
-	@echo "stub: not yet wired (M4)"
+migrate-up: ## Apply pending migrations
+	go run ./cmd/migrate up
 
-migrate-down: ## Roll back last migration (stub -- wired in M4)
-	@echo "stub: not yet wired (M4)"
+migrate-down: ## Roll back migrations (override steps: make migrate-down n=2)
+	go run ./cmd/migrate down $(or $(n),1)
 
-migrate-create: ## Create a new migration (stub -- wired in M4)
-	@echo "stub: not yet wired (M4)"
+migrate-create: ## Create a new migration (make migrate-create name=add_foo)
+	go run ./cmd/migrate create $(name)
 
-sqlc: ## Regenerate sqlc query code (stub -- wired in M4)
-	@echo "stub: not yet wired (M4)"
+sqlc: ## Regenerate sqlc query code (stub -- wired in M5)
+	@echo "stub: not yet wired (M5)"
 
 swagger: ## Regenerate OpenAPI spec (stub -- wired in M3)
 	@echo "stub: not yet wired (M3)"
