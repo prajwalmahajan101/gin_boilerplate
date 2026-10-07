@@ -1,0 +1,16 @@
+version: "2"
+sql:
+  - engine: postgresql
+    queries: internal/store/queries
+    # Point at up migrations only — down files would DROP the schema sqlc reads.
+    # Append each new migration's *.up.sql here.
+    schema:
+      - migrations/000001_base.up.sql
+    gen:
+      go:
+        package: db
+        out: internal/store/db
+        sql_package: pgx/v5
+        emit_interface: false
+        emit_json_tags: false
+        emit_empty_slices: true

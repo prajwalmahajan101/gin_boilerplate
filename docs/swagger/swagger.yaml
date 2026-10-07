@@ -1,0 +1,179 @@
+basePath: /api/v1
+definitions:
+  items.createReq:
+    properties:
+      code:
+        type: string
+      name:
+        type: string
+      notes:
+        type: object
+    required:
+    - code
+    - name
+    type: object
+  items.updateReq:
+    properties:
+      name:
+        type: string
+      notes:
+        type: object
+    type: object
+  response.Envelope:
+    properties:
+      data: {}
+      errors:
+        items:
+          $ref: '#/definitions/response.ErrDetail'
+        type: array
+      message:
+        type: string
+      request_id:
+        type: string
+      success:
+        type: boolean
+    type: object
+  response.ErrDetail:
+    properties:
+      code:
+        type: string
+      details:
+        additionalProperties: {}
+        type: object
+      field:
+        type: string
+      message:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: Modular monolith boilerplate API.
+  title: gin_boilerplate API
+  version: 0.1.0
+paths:
+  /items:
+    get:
+      parameters:
+      - description: page number
+        in: query
+        name: page
+        type: integer
+      - description: page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List items
+      tags:
+      - items
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: item to create
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/items.createReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Create item
+      tags:
+      - items
+  /items/{id}:
+    delete:
+      parameters:
+      - description: item id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Soft-delete item
+      tags:
+      - items
+    get:
+      parameters:
+      - description: item id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Get item by ID
+      tags:
+      - items
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: item id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/items.updateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Update item
+      tags:
+      - items
+swagger: "2.0"

@@ -55,11 +55,11 @@ migrate-down: ## Roll back migrations (override steps: make migrate-down n=2)
 migrate-create: ## Create a new migration (make migrate-create name=add_foo)
 	go run ./cmd/migrate create $(name)
 
-sqlc: ## Regenerate sqlc query code (stub -- wired in M5)
-	@echo "stub: not yet wired (M5)"
+sqlc: ## Regenerate sqlc query code
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.30.0 generate
 
-swagger: ## Regenerate OpenAPI spec (stub -- wired in M3)
-	@echo "stub: not yet wired (M3)"
+swagger: ## Regenerate OpenAPI spec
+	go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs/swagger
 
 compose-up: ## Start docker-compose stack
 	docker compose up -d

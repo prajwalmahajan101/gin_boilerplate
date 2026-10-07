@@ -6,18 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
-	"os"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-
-	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/store"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/store/dbtest"
 )
 
 // Item is a test-local model mapped to the migrated items table. The real items
@@ -31,69 +25,8 @@ type Item struct {
 
 func (Item) TableName() string { return "items" }
 
-var dbCounter atomic.Int64
-
-// newTestDB creates a throwaway database inside the Postgres server pointed to by
-// DATABASE_URL, migrates it, and returns a pool. The database is dropped on cleanup.
-func newTestDB(t *testing.T) *pgxpool.Pool {
-	t.Helper()
-
-	base := os.Getenv("DATABASE_URL")
-	if base == "" {
-		t.Skip("DATABASE_URL not set; skipping integration test")
-	}
-
-	ctx := context.Background()
-	name := fmt.Sprintf("gin_boilerplate_test_%d_%d", os.Getpid(), dbCounter.Add(1))
-
-	admin, err := pgx.Connect(ctx, base)
-	if err != nil {
-		t.Fatalf("connect admin: %v", err)
-	}
-	if _, err = admin.Exec(ctx, "CREATE DATABASE "+name); err != nil {
-		_ = admin.Close(ctx)
-		t.Fatalf("create database %s: %v", name, err)
-	}
-	_ = admin.Close(ctx)
-
-	testURL := swapDBName(t, base, name)
-	if err = store.Migrate(testURL); err != nil {
-		t.Fatalf("migrate: %v", err)
-	}
-
-	cfg := &config.Config{DatabaseURL: testURL, DBConnTimeoutMS: 5000, DBQueryTimeoutMS: 300}
-	pool, err := store.NewPool(ctx, cfg)
-	if err != nil {
-		t.Fatalf("new pool: %v", err)
-	}
-
-	t.Cleanup(func() {
-		pool.Close()
-		admin, err := pgx.Connect(ctx, base)
-		if err != nil {
-			t.Logf("cleanup connect: %v", err)
-			return
-		}
-		defer admin.Close(ctx)
-		if _, err := admin.Exec(ctx, "DROP DATABASE IF EXISTS "+name+" WITH (FORCE)"); err != nil {
-			t.Logf("drop database %s: %v", name, err)
-		}
-	})
-	return pool
-}
-
-func swapDBName(t *testing.T, raw, name string) string {
-	t.Helper()
-	u, err := url.Parse(raw)
-	if err != nil {
-		t.Fatalf("parse DATABASE_URL: %v", err)
-	}
-	u.Path = "/" + name
-	return u.String()
-}
-
 func TestRepository_CreateReadRoundTrip(t *testing.T) {
-	pool := newTestDB(t)
+	pool := dbtest.New(t)
 	repo := store.NewRepository[Item](pool)
 	ctx := context.Background()
 
@@ -125,7 +58,7 @@ func TestRepository_CreateReadRoundTrip(t *testing.T) {
 }
 
 func TestRepository_ListAndPaginate(t *testing.T) {
-	pool := newTestDB(t)
+	pool := dbtest.New(t)
 	repo := store.NewRepository[Item](pool)
 	ctx := context.Background()
 
@@ -146,7 +79,7 @@ func TestRepository_ListAndPaginate(t *testing.T) {
 }
 
 func TestRepository_SoftDelete(t *testing.T) {
-	pool := newTestDB(t)
+	pool := dbtest.New(t)
 	repo := store.NewRepository[Item](pool)
 	ctx := context.Background()
 
@@ -193,7 +126,7 @@ func (h countingHooks) PreDelete(_ context.Context, _ *Item) error {
 func (h countingHooks) PostDelete(_ context.Context, _ *Item) { *h.seq = append(*h.seq, "post_delete") }
 
 func TestBaseService_HooksFireInOrder(t *testing.T) {
-	pool := newTestDB(t)
+	pool := dbtest.New(t)
 	repo := store.NewRepository[Item](pool)
 	seq := &[]string{}
 	svc := store.NewBaseService[Item](repo, pool, countingHooks{seq: seq})
@@ -218,7 +151,7 @@ func TestBaseService_HooksFireInOrder(t *testing.T) {
 }
 
 func TestPool_PerCallQueryTimeout(t *testing.T) {
-	pool := newTestDB(t) // DBQueryTimeoutMS=300 from newTestDB cfg
+	pool := dbtest.New(t) // dbtest sets DBQueryTimeoutMS=300
 	ctx, cancel := store.WithQueryTimeout(context.Background())
 	defer cancel()
 

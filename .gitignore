@@ -8,9 +8,6 @@ dist/
 .env
 .env.local
 
-# generated
-docs/swagger/
-
 # logs
 logs/
 *.log
