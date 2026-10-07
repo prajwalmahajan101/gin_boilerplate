@@ -4,6 +4,9 @@ import (
 	"log/slog"
 
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/middleware"
@@ -37,6 +40,9 @@ func NewRouter(rc RouterConfig) (*gin.Engine, error) {
 	// Health probes live outside /api so they never sit behind auth.
 	r.GET("/healthz", Liveness())
 	r.GET("/readyz", Readiness(rc.ReadyChecks))
+
+	// Swagger UI (spec registered by the blank-imported docs/swagger package).
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	public := r.Group("/api/v1")
 	protected := r.Group("/api/v1")
