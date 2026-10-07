@@ -39,7 +39,7 @@ func TestRecovery_PanicReturns500(t *testing.T) {
 	r.GET("/boom", func(c *gin.Context) { panic("test panic") })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/boom", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/boom", http.NoBody))
 
 	if w.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d, want 500", w.Code)
@@ -92,7 +92,7 @@ func TestCORS_PreflightAllowed(t *testing.T) {
 	r := setupRouter(CORS([]string{"https://app.example.com"}))
 	r.OPTIONS("/api", func(c *gin.Context) {})
 
-	req := httptest.NewRequest("OPTIONS", "/api", nil)
+	req := httptest.NewRequest("OPTIONS", "/api", http.NoBody)
 	req.Header.Set("Origin", "https://app.example.com")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -109,7 +109,7 @@ func TestCORS_PreflightDisallowed(t *testing.T) {
 	r := setupRouter(CORS([]string{"https://app.example.com"}))
 	r.OPTIONS("/api", func(c *gin.Context) {})
 
-	req := httptest.NewRequest("OPTIONS", "/api", nil)
+	req := httptest.NewRequest("OPTIONS", "/api", http.NoBody)
 	req.Header.Set("Origin", "https://evil.example.com")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -124,7 +124,7 @@ func TestCORS_NoOriginPassesThrough(t *testing.T) {
 	r.GET("/api", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/api", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/api", http.NoBody))
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("got %d, want 200", w.Code)
@@ -138,7 +138,7 @@ func TestSecurityHeaders_AllPresent(t *testing.T) {
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	checks := map[string]string{
 		"X-Content-Type-Options":    "nosniff",
@@ -158,7 +158,7 @@ func TestSecurityHeaders_NoHSTSInDev(t *testing.T) {
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	if got := w.Header().Get("Strict-Transport-Security"); got != "" {
 		t.Errorf("HSTS should be empty in dev, got %q", got)
@@ -171,7 +171,7 @@ func TestRequestID_EchoesValid(t *testing.T) {
 	r := setupRouter(RequestID())
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("X-Request-ID", "my-trace-123")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -186,7 +186,7 @@ func TestRequestID_MintsUUIDForMissing(t *testing.T) {
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	id := w.Header().Get("X-Request-ID")
 	if id == "" {
@@ -201,7 +201,7 @@ func TestRequestID_RejectsInvalidAndMints(t *testing.T) {
 	r := setupRouter(RequestID())
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	req.Header.Set("X-Request-ID", "has spaces bad!")
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
@@ -223,7 +223,7 @@ func TestRequestLogging_ServerTimingHeader(t *testing.T) {
 	r.GET("/", func(c *gin.Context) { c.String(http.StatusOK, "ok") })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	st := w.Header().Get("Server-Timing")
 	if st == "" {
@@ -244,7 +244,7 @@ func TestRateLimitHeaders_EmitsWhenSet(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	if got := w.Header().Get("X-RateLimit-Limit"); got != "100" {
 		t.Fatalf("got %q, want 100", got)
@@ -259,7 +259,7 @@ func TestRateLimitHeaders_NoopWhenAbsent(t *testing.T) {
 	r.GET("/", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	w := httptest.NewRecorder()
-	r.ServeHTTP(w, httptest.NewRequest("GET", "/", nil))
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/", http.NoBody))
 
 	if got := w.Header().Get("X-RateLimit-Limit"); got != "" {
 		t.Fatalf("expected no rate limit header, got %q", got)
