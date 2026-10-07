@@ -1,0 +1,24 @@
+# binaries / build
+bin/
+tmp/
+*.exe
+dist/
+
+# env / secrets
+.env
+.env.local
+
+# generated
+docs/swagger/
+
+# logs
+logs/
+*.log
+
+# go
+vendor/
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
