@@ -5,7 +5,7 @@ MAIN   := ./cmd/server
 
 .PHONY: help build run dev test lint fmt vet hooks vuln \
         migrate-up migrate-down migrate-create sqlc swagger \
-        compose-up compose-down load-smoke load
+        compose-up compose-down seed load-smoke load
 
 help: ## Show this help message
 	@echo ""
@@ -60,6 +60,9 @@ sqlc: ## Regenerate sqlc query code
 
 swagger: ## Regenerate OpenAPI spec
 	go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o docs/swagger
+
+seed: ## Seed admin user (requires SEED_ADMIN_PASSWORD env)
+	go run ./cmd/seed
 
 compose-up: ## Start docker-compose stack
 	docker compose up -d
