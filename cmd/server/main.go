@@ -8,6 +8,7 @@ import (
 	_ "github.com/prajwalmahajan101/gin_boilerplate/docs/swagger" // registers the generated OpenAPI spec
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/auth"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/items"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/logger"
@@ -37,6 +38,8 @@ func run(ctx context.Context) error {
 
 	// Postgres is optional: a set DATABASE_URL wires the pool and its readiness
 	// check; an empty one keeps the server bootable without a database.
+	tokenSvc := auth.NewTokenService(cfg)
+
 	var readyChecks map[string]httpserver.Check
 	var mods []modules.Module
 	if cfg.DatabaseURL != "" {
@@ -46,7 +49,10 @@ func run(ctx context.Context) error {
 		}
 		defer store.Close(pool)
 		readyChecks = map[string]httpserver.Check{"postgres": pool.Ping}
-		mods = append(mods, items.NewHandler(items.NewService(pool)))
+		mods = append(mods,
+			auth.NewHandler(auth.NewService(pool, tokenSvc)),
+			items.NewHandler(items.NewService(pool)),
+		)
 	}
 
 	vk, vkErr := valkey.New(cfg)
@@ -66,6 +72,8 @@ func run(ctx context.Context) error {
 		Logger:      log,
 		ReadyChecks: readyChecks,
 		Modules:     mods,
+		TokenParser: tokenSvc.AccessParser(),
+		Valkey:      vk,
 	})
 	if err != nil {
 		return err
