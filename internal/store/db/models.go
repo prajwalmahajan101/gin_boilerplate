@@ -17,3 +17,14 @@ type Item struct {
 	Code      string
 	Notes     []byte
 }
+
+type User struct {
+	ID           int64
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	IsActive     bool
+	Email        string
+	PasswordHash string
+	Role         string
+	LastLoginAt  pgtype.Timestamptz
+}

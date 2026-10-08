@@ -6,6 +6,7 @@ sql:
     # Append each new migration's *.up.sql here.
     schema:
       - migrations/000001_base.up.sql
+      - migrations/000002_users.up.sql
     gen:
       go:
         package: db
