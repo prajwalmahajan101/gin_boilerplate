@@ -45,7 +45,8 @@ func e2eSetup(t *testing.T) testEnv {
 	pool := dbtest.New(t)
 	tokenSvc := auth.NewTokenService(cfg)
 	apiKeySvc := auth.NewAPIKeyService(pool, "test-pepper")
-	handler := auth.NewHandler(auth.NewService(pool, tokenSvc, nil), apiKeySvc, tokenSvc)
+	rbacSvc := auth.NewRBACService(pool)
+	handler := auth.NewHandler(auth.NewService(pool, tokenSvc, nil), apiKeySvc, rbacSvc, tokenSvc)
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
 		Cfg:             cfg,
 		Logger:          slog.Default(),
