@@ -65,8 +65,9 @@ func run(ctx context.Context) error {
 		readyChecks["postgres"] = pool.Ping
 		apiKeySvc := auth.NewAPIKeyService(pool, cfg.APIKeyHashPepper)
 		apiKeyValidator = apiKeySvc.Validate
+		rbacSvc := auth.NewRBACService(pool)
 		mods = append(mods,
-			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, tokenSvc),
+			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, rbacSvc, tokenSvc),
 			items.NewHandler(items.NewService(pool)),
 		)
 	}

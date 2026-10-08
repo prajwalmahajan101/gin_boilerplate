@@ -12,6 +12,7 @@ import (
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/pagination"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/reqcontext"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/response"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/store/db"
 )
 
 type authService interface {
@@ -32,14 +33,23 @@ type apiKeyService interface {
 	Revoke(ctx context.Context, id int64) error
 }
 
+type rbacService interface {
+	ListRoles(ctx context.Context) ([]db.Role, error)
+	AssignRole(ctx context.Context, userID int64, roleName string) error
+	RemoveRole(ctx context.Context, userID, roleID int64) error
+	UserPermissions(ctx context.Context, userID int64) ([]db.GetUserPermissionsRow, error)
+	UserRoles(ctx context.Context, userID int64) ([]db.GetUserRolesRow, error)
+}
+
 type Handler struct {
 	svc    authService
 	apiKey apiKeyService
+	rbac   rbacService
 	tokens *TokenService
 }
 
-func NewHandler(svc authService, apiKey apiKeyService, tokens *TokenService) *Handler {
-	return &Handler{svc: svc, apiKey: apiKey, tokens: tokens}
+func NewHandler(svc authService, apiKey apiKeyService, rbac rbacService, tokens *TokenService) *Handler {
+	return &Handler{svc: svc, apiKey: apiKey, rbac: rbac, tokens: tokens}
 }
 
 func (h *Handler) RegisterRoutes(public, protected, admin *gin.RouterGroup) {
@@ -70,6 +80,13 @@ func (h *Handler) RegisterRoutes(public, protected, admin *gin.RouterGroup) {
 	ak.POST("", h.createKeyAdmin)
 	ak.GET("", h.listKeysAdmin)
 	ak.DELETE("/:id", h.revokeKeyAdmin)
+
+	// Admin RBAC management
+	admin.GET("/roles", h.listRoles)
+	admin.GET("/users/:id/roles", h.listUserRoles)
+	admin.POST("/users/:id/roles", h.assignRole)
+	admin.DELETE("/users/:id/roles/:role_id", h.removeRole)
+	admin.GET("/users/:id/permissions", h.listUserPermissions)
 }
 
 type registerReq struct {
@@ -525,4 +542,120 @@ func (h *Handler) revokeKeyAdmin(c *gin.Context) {
 		return
 	}
 	response.Success(c, http.StatusOK, "api key revoked", nil)
+}
+
+// --- RBAC admin endpoints ---
+
+// listRoles godoc
+// @Summary   List roles (admin)
+// @Tags      admin
+// @Produce   json
+// @Success   200  {object}  response.Envelope
+// @Router    /admin/roles [get]
+func (h *Handler) listRoles(c *gin.Context) {
+	roles, err := h.rbac.ListRoles(c.Request.Context())
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "ok", roles)
+}
+
+// listUserRoles godoc
+// @Summary   List roles for a user (admin)
+// @Tags      admin
+// @Produce   json
+// @Param     id   path      int  true  "user id"
+// @Success   200  {object}  response.Envelope
+// @Router    /admin/users/{id}/roles [get]
+func (h *Handler) listUserRoles(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, apperr.ValidationError("invalid id"))
+		return
+	}
+	roles, err := h.rbac.UserRoles(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "ok", roles)
+}
+
+type assignRoleReq struct {
+	Role string `json:"role" binding:"required"`
+}
+
+// assignRole godoc
+// @Summary   Assign role to user (admin)
+// @Tags      admin
+// @Accept    json
+// @Produce   json
+// @Param     id    path      int             true  "user id"
+// @Param     body  body      assignRoleReq   true  "role to assign"
+// @Success   200   {object}  response.Envelope
+// @Router    /admin/users/{id}/roles [post]
+func (h *Handler) assignRole(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, apperr.ValidationError("invalid id"))
+		return
+	}
+	var req assignRoleReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.ValidationError(err.Error()))
+		return
+	}
+	if err := h.rbac.AssignRole(c.Request.Context(), id, req.Role); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "role assigned", nil)
+}
+
+// removeRole godoc
+// @Summary   Remove role from user (admin)
+// @Tags      admin
+// @Produce   json
+// @Param     id       path      int  true  "user id"
+// @Param     role_id  path      int  true  "role id"
+// @Success   200      {object}  response.Envelope
+// @Router    /admin/users/{id}/roles/{role_id} [delete]
+func (h *Handler) removeRole(c *gin.Context) {
+	uid, err := parseID(c)
+	if err != nil {
+		response.Error(c, apperr.ValidationError("invalid user id"))
+		return
+	}
+	roleID, err := strconv.ParseInt(c.Param("role_id"), 10, 64)
+	if err != nil {
+		response.Error(c, apperr.ValidationError("invalid role id"))
+		return
+	}
+	if err := h.rbac.RemoveRole(c.Request.Context(), uid, roleID); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "role removed", nil)
+}
+
+// listUserPermissions godoc
+// @Summary   List effective permissions for a user (admin)
+// @Tags      admin
+// @Produce   json
+// @Param     id   path      int  true  "user id"
+// @Success   200  {object}  response.Envelope
+// @Router    /admin/users/{id}/permissions [get]
+func (h *Handler) listUserPermissions(c *gin.Context) {
+	id, err := parseID(c)
+	if err != nil {
+		response.Error(c, apperr.ValidationError("invalid id"))
+		return
+	}
+	perms, err := h.rbac.UserPermissions(c.Request.Context(), id)
+	if err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "ok", perms)
 }
