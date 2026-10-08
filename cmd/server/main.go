@@ -12,6 +12,7 @@ import (
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/logger"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/store"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/valkey"
 )
 
 // @title        gin_boilerplate API
@@ -46,6 +47,18 @@ func run(ctx context.Context) error {
 		defer store.Close(pool)
 		readyChecks = map[string]httpserver.Check{"postgres": pool.Ping}
 		mods = append(mods, items.NewHandler(items.NewService(pool)))
+	}
+
+	vk, vkErr := valkey.New(cfg)
+	if vkErr != nil {
+		return vkErr
+	}
+	if vk != nil {
+		defer vk.Close()
+		if readyChecks == nil {
+			readyChecks = make(map[string]httpserver.Check)
+		}
+		readyChecks["valkey"] = vk.Ping
 	}
 
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
