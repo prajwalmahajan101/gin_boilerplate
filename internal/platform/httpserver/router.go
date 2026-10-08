@@ -15,12 +15,13 @@ import (
 
 // RouterConfig carries everything NewRouter needs to assemble the engine.
 type RouterConfig struct {
-	Cfg         *config.Config
-	Logger      *slog.Logger
-	Modules     []modules.Module
-	ReadyChecks map[string]Check
-	TokenParser middleware.TokenParser // nil = no auth enforcement
-	Valkey      *valkey.Client         // nil = rate limiting disabled
+	Cfg             *config.Config
+	Logger          *slog.Logger
+	Modules         []modules.Module
+	ReadyChecks     map[string]Check
+	TokenParser     middleware.TokenParser     // nil = no auth enforcement
+	APIKeyValidator middleware.APIKeyValidator // nil = API key auth disabled
+	Valkey          *valkey.Client             // nil = rate limiting disabled
 }
 
 // NewRouter builds the gin engine: middleware chain, health probes, and the
@@ -57,8 +58,12 @@ func NewRouter(rc RouterConfig) (*gin.Engine, error) {
 	admin.Use(middleware.RateLimit(rc.Valkey, rc.Cfg.RateLimitRPM, "api"))
 
 	if rc.TokenParser != nil {
-		protected.Use(middleware.Auth(rc.TokenParser))
-		admin.Use(middleware.Auth(rc.TokenParser), middleware.RequireRole("admin"))
+		var authOpts []middleware.APIKeyValidator
+		if rc.APIKeyValidator != nil {
+			authOpts = append(authOpts, rc.APIKeyValidator)
+		}
+		protected.Use(middleware.Auth(rc.TokenParser, authOpts...))
+		admin.Use(middleware.Auth(rc.TokenParser, authOpts...), middleware.RequireRole("admin"))
 	}
 
 	for _, m := range rc.Modules {
