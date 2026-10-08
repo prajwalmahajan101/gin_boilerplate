@@ -18,6 +18,7 @@ import (
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/auth"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/items"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/response"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/store/dbtest"
@@ -46,10 +47,11 @@ func e2eSetup(t *testing.T) testEnv {
 	apiKeySvc := auth.NewAPIKeyService(pool, "test-pepper")
 	handler := auth.NewHandler(auth.NewService(pool, tokenSvc, nil), apiKeySvc, tokenSvc)
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
-		Cfg:         cfg,
-		Logger:      slog.Default(),
-		Modules:     []modules.Module{handler},
-		TokenParser: tokenSvc.AccessParser(),
+		Cfg:             cfg,
+		Logger:          slog.Default(),
+		Modules:         []modules.Module{handler, items.NewHandler(items.NewService(pool))},
+		TokenParser:     tokenSvc.AccessParser(),
+		APIKeyValidator: apiKeySvc.Validate,
 	})
 	if err != nil {
 		t.Fatalf("new router: %v", err)
@@ -187,15 +189,14 @@ func TestAuth_AdminCRUD(t *testing.T) {
 	r := te.router
 
 	// Register admin
-	_, env := req(t, r, http.MethodPost, "/api/v1/auth/register",
+	req(t, r, http.MethodPost, "/api/v1/auth/register",
 		`{"email":"admin@test.com","password":"password123"}`)
-	adminAccess, _ := tokenPairFromData(t, env)
 	promoteToAdmin(t, te.pool, "admin@test.com")
 
 	// Re-login to get admin-role token
-	_, env = req(t, r, http.MethodPost, "/api/v1/auth/login",
+	_, env := req(t, r, http.MethodPost, "/api/v1/auth/login",
 		`{"email":"admin@test.com","password":"password123"}`)
-	adminAccess, _ = tokenPairFromData(t, env)
+	adminAccess, _ := tokenPairFromData(t, env)
 	bearer := "Bearer " + adminAccess
 
 	// Register a regular user
@@ -210,9 +211,9 @@ func TestAuth_AdminCRUD(t *testing.T) {
 
 	// Get the regular user's ID from the list
 	data := env.Data.(map[string]any)
-	items := data["items"].([]any)
+	userList := data["items"].([]any)
 	var userID float64
-	for _, item := range items {
+	for _, item := range userList {
 		u := item.(map[string]any)
 		if u["email"] == "user@test.com" {
 			userID = u["id"].(float64)
@@ -273,9 +274,9 @@ func TestAuth_APIKey_SelfService(t *testing.T) {
 
 	// Use API key on protected route
 	w, _ = req(t, r, http.MethodGet, "/api/v1/items", "", "X-API-Key", rawKey)
-	// No APIKeyValidator wired in test router, so this will 401 — that's OK,
-	// we tested the key was created. Full API key middleware test needs the
-	// validator wired.
+	if w.Code != http.StatusOK {
+		t.Fatalf("api key auth status = %d, want 200; body = %s", w.Code, w.Body.String())
+	}
 
 	// Revoke key
 	w, _ = req(t, r, http.MethodDelete, fmt.Sprintf("/api/v1/auth/api-keys/%d", keyID),
