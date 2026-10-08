@@ -8,10 +8,13 @@ import (
 	_ "github.com/prajwalmahajan101/gin_boilerplate/docs/swagger" // registers the generated OpenAPI spec
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/auth"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/items"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/logger"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/middleware"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/store"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/valkey"
 )
 
 // @title        gin_boilerplate API
@@ -34,25 +37,49 @@ func run(ctx context.Context) error {
 	log := logger.Setup()
 	log.InfoContext(ctx, "starting server", slog.Any("config", cfg))
 
-	// Postgres is optional: a set DATABASE_URL wires the pool and its readiness
-	// check; an empty one keeps the server bootable without a database.
-	var readyChecks map[string]httpserver.Check
+	tokenSvc := auth.NewTokenService(cfg)
+
+	vk, vkErr := valkey.New(cfg)
+	if vkErr != nil {
+		return vkErr
+	}
+	if vk != nil {
+		defer vk.Close()
+	}
+
+	blacklist := auth.NewBlacklist(vk)
+
+	readyChecks := make(map[string]httpserver.Check)
+	if vk != nil {
+		readyChecks["valkey"] = vk.Ping
+	}
+
 	var mods []modules.Module
+	var apiKeyValidator middleware.APIKeyValidator
 	if cfg.DatabaseURL != "" {
 		pool, perr := store.NewPool(ctx, cfg)
 		if perr != nil {
 			return perr
 		}
 		defer store.Close(pool)
-		readyChecks = map[string]httpserver.Check{"postgres": pool.Ping}
-		mods = append(mods, items.NewHandler(items.NewService(pool)))
+		readyChecks["postgres"] = pool.Ping
+		apiKeySvc := auth.NewAPIKeyService(pool, cfg.APIKeyHashPepper)
+		apiKeyValidator = apiKeySvc.Validate
+		mods = append(mods,
+			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, tokenSvc),
+			items.NewHandler(items.NewService(pool)),
+		)
 	}
 
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
-		Cfg:         cfg,
-		Logger:      log,
-		ReadyChecks: readyChecks,
-		Modules:     mods,
+		Cfg:             cfg,
+		Logger:          log,
+		ReadyChecks:     readyChecks,
+		Modules:         mods,
+		TokenParser:     tokenSvc.AccessParser(),
+		APIKeyValidator: apiKeyValidator,
+		Blacklist:       blacklist.IsBlacklisted,
+		Valkey:          vk,
 	})
 	if err != nil {
 		return err

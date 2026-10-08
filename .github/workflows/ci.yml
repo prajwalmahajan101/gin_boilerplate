@@ -55,6 +55,15 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
+      valkey:
+        image: valkey/valkey:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -66,9 +75,10 @@ jobs:
       - name: go test -tags=integration
         env:
           DATABASE_URL: postgres://gin_boilerplate:gin_boilerplate@localhost:5432/gin_boilerplate?sslmode=disable
+          VALKEY_URL: redis://localhost:6379/0
         # Only packages with integration tests. Running ./... here would re-run
         # unit tests (e.g. config defaults) with DATABASE_URL set and break them.
-        run: go test -tags=integration -race -timeout 5m ./internal/store/... ./internal/modules/...
+        run: go test -tags=integration -race -timeout 5m ./internal/store/... ./internal/modules/... ./internal/valkey/...
 
   lint:
     name: golangci-lint
