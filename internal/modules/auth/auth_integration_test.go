@@ -35,7 +35,8 @@ func e2eRouter(t *testing.T) *gin.Engine {
 	cfg := testCfg()
 	pool := dbtest.New(t)
 	tokenSvc := auth.NewTokenService(cfg)
-	handler := auth.NewHandler(auth.NewService(pool, tokenSvc))
+	apiKeySvc := auth.NewAPIKeyService(pool, "test-pepper")
+	handler := auth.NewHandler(auth.NewService(pool, tokenSvc), apiKeySvc)
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
 		Cfg:         cfg,
 		Logger:      slog.Default(),

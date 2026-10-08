@@ -8,6 +8,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ApiKey struct {
+	ID         int64
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	IsActive   bool
+	UserID     int64
+	Name       string
+	Prefix     string
+	KeyHash    string
+	ExpiresAt  pgtype.Timestamptz
+	LastUsedAt pgtype.Timestamptz
+}
+
 type Item struct {
 	ID        int64
 	CreatedAt pgtype.Timestamptz

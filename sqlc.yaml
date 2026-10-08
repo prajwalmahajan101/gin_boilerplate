@@ -7,6 +7,7 @@ sql:
     schema:
       - migrations/000001_base.up.sql
       - migrations/000002_users.up.sql
+      - migrations/000003_api_keys.up.sql
     gen:
       go:
         package: db

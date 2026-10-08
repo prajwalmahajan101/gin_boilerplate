@@ -12,6 +12,7 @@ import (
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/items"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/logger"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/middleware"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/store"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/valkey"
 )
@@ -42,6 +43,7 @@ func run(ctx context.Context) error {
 
 	var readyChecks map[string]httpserver.Check
 	var mods []modules.Module
+	var apiKeyValidator middleware.APIKeyValidator
 	if cfg.DatabaseURL != "" {
 		pool, perr := store.NewPool(ctx, cfg)
 		if perr != nil {
@@ -49,8 +51,10 @@ func run(ctx context.Context) error {
 		}
 		defer store.Close(pool)
 		readyChecks = map[string]httpserver.Check{"postgres": pool.Ping}
+		apiKeySvc := auth.NewAPIKeyService(pool, cfg.APIKeyHashPepper)
+		apiKeyValidator = apiKeySvc.Validate
 		mods = append(mods,
-			auth.NewHandler(auth.NewService(pool, tokenSvc)),
+			auth.NewHandler(auth.NewService(pool, tokenSvc), apiKeySvc),
 			items.NewHandler(items.NewService(pool)),
 		)
 	}
@@ -68,12 +72,13 @@ func run(ctx context.Context) error {
 	}
 
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
-		Cfg:         cfg,
-		Logger:      log,
-		ReadyChecks: readyChecks,
-		Modules:     mods,
-		TokenParser: tokenSvc.AccessParser(),
-		Valkey:      vk,
+		Cfg:             cfg,
+		Logger:          log,
+		ReadyChecks:     readyChecks,
+		Modules:         mods,
+		TokenParser:     tokenSvc.AccessParser(),
+		APIKeyValidator: apiKeyValidator,
+		Valkey:          vk,
 	})
 	if err != nil {
 		return err

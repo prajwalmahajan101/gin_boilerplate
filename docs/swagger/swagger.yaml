@@ -1,5 +1,23 @@
 basePath: /api/v1
 definitions:
+  auth.adminUpdateReq:
+    properties:
+      is_active:
+        type: boolean
+      role:
+        type: string
+    type: object
+  auth.createKeyReq:
+    properties:
+      expires_at:
+        type: string
+      name:
+        type: string
+      user_id:
+        type: integer
+    required:
+    - name
+    type: object
   auth.loginReq:
     properties:
       email:
@@ -79,6 +97,225 @@ info:
   title: gin_boilerplate API
   version: 0.1.0
 paths:
+  /admin/api-keys:
+    get:
+      parameters:
+      - description: user id
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List API keys by user (admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: key details (user_id required)
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.createKeyReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Create API key for any user (admin)
+      tags:
+      - admin
+  /admin/api-keys/{id}:
+    delete:
+      parameters:
+      - description: api key id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Revoke API key (admin)
+      tags:
+      - admin
+  /admin/users:
+    get:
+      parameters:
+      - description: page number
+        in: query
+        name: page
+        type: integer
+      - description: page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List users (admin)
+      tags:
+      - admin
+  /admin/users/{id}:
+    delete:
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Soft-delete user (admin)
+      tags:
+      - admin
+    get:
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Get user by ID (admin)
+      tags:
+      - admin
+    patch:
+      consumes:
+      - application/json
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: fields to update
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.adminUpdateReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Update user role or status (admin)
+      tags:
+      - admin
+  /auth/api-keys:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List own API keys
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: key details
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.createKeyReq'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Create API key for self
+      tags:
+      - auth
+  /auth/api-keys/{id}:
+    delete:
+      parameters:
+      - description: api key id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Revoke own API key
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
