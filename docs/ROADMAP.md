@@ -48,7 +48,7 @@ internal/
 
 ---
 
-## M0: Quality Gates + Project Skeleton
+## M0: Quality Gates + Project Skeleton ✅
 
 **Goal:** Every subsequent PR has green CI before merge. Linting, formatting, pre-commit hooks, CI pipeline, goreleaser, and project skeleton -- all in the first commit to `main`.
 
@@ -72,19 +72,19 @@ internal/
 
 ### Verify
 
-- [ ] `make lint` / `make test` / `make vet` / `make fmt` all pass
-- [ ] `make hooks` installs pre-commit; unformatted .go -> rejected
-- [ ] `make vuln` passes
-- [ ] `go build ./cmd/server` compiles
-- [ ] `docker build .` works
-- [ ] CI green on PR (all 4 jobs)
-- [ ] `goreleaser check` valid
+- [x] `make lint` / `make test` / `make vet` / `make fmt` all pass
+- [x] `make hooks` installs pre-commit; unformatted .go -> rejected
+- [x] `make vuln` passes
+- [x] `go build ./cmd/server` compiles
+- [x] `docker build .` works
+- [x] CI green on PR (all 4 jobs)
+- [x] `goreleaser check` valid
 
 **No code PR merges without green CI from this point forward.**
 
 ---
 
-## M1: Core Foundation
+## M1: Core Foundation ✅
 
 **Goal:** All shared patterns that every module depends on. This is the heart of the boilerplate -- the "core" package equivalent from Django/FastAPI. Config, logging, errors, envelope, base model, generic repository, base service with hooks, pagination. After this milestone, a new domain module is just handler + service + repo that composes these building blocks.
 
@@ -128,22 +128,22 @@ internal/
 
 ### Verify
 
-- [ ] Config loads all fields from `.env` with sensible defaults
-- [ ] Logger outputs JSON with request_id on `slog.InfoContext`
-- [ ] `apperr.New(apperr.CodeNotFound, "x")` -> status 404, code `NOT_FOUND`
-- [ ] `response.Success()` / `response.Error()` / `response.Paginated()` produce correct envelope JSON
-- [ ] `BaseModel` fields present: id, is_active, created_at, updated_at
-- [ ] `Repository[T].Create()` + `FindByID()` + `List()` + `SoftDelete()` compile (unit test with mock Querier)
-- [ ] `BaseService[T]` CRUD calls hooks in correct order (unit test with hook counter)
-- [ ] `CascadeSoftDelete` walks children with depth cap (unit test)
-- [ ] `Module` interface compiles, module registration pattern works
-- [ ] All pagination edge cases: page < 1 clamped, size > MaxPageSize clamped, int32 overflow guarded
-- [ ] `make test` + `make lint` green
-- [ ] CI green on PR
+- [x] Config loads all fields from `.env` with sensible defaults
+- [x] Logger outputs JSON with request_id on `slog.InfoContext`
+- [x] `apperr.New(apperr.CodeNotFound, "x")` -> status 404, code `NOT_FOUND`
+- [x] `response.Success()` / `response.Error()` / `response.Paginated()` produce correct envelope JSON
+- [x] `BaseModel` fields present: id, is_active, created_at, updated_at
+- [x] `Repository[T].Create()` + `FindByID()` + `List()` + `SoftDelete()` compile (unit test with mock Querier)
+- [x] `BaseService[T]` CRUD calls hooks in correct order (unit test with hook counter)
+- [x] `CascadeSoftDelete` walks children with depth cap (unit test)
+- [x] `Module` interface compiles, module registration pattern works
+- [x] All pagination edge cases: page < 1 clamped, size > MaxPageSize clamped, int32 overflow guarded
+- [x] `make test` + `make lint` green
+- [x] CI green on PR
 
 ---
 
-## M2: Middleware Stack
+## M2: Middleware Stack ✅
 
 **Goal:** Full middleware chain. No auth or rate-limit yet (those come with their modules).
 
@@ -161,16 +161,16 @@ internal/
 
 ### Verify
 
-- [ ] Panic -> 500 envelope with request_id
-- [ ] Oversized body -> 413 envelope
-- [ ] Every response has `X-Request-ID` header
-- [ ] Security headers on every response
-- [ ] CORS preflight 204 / 403
-- [ ] CI green on PR
+- [x] Panic -> 500 envelope with request_id
+- [x] Oversized body -> 413 envelope
+- [x] Every response has `X-Request-ID` header
+- [x] Security headers on every response
+- [x] CORS preflight 204 / 403
+- [x] CI green on PR
 
 ---
 
-## M3: HTTP Server + Health Probes + Swagger + Docker
+## M3: HTTP Server + Health Probes + Swagger + Docker ✅
 
 **Goal:** Gin engine with three-gate router (public/protected/admin), graceful shutdown, health probes, Swagger UI, Docker Compose stack. First runnable server.
 
@@ -187,16 +187,16 @@ internal/
 
 ### Verify
 
-- [ ] `docker compose up -d` brings up Postgres + Valkey + app
-- [ ] `curl /healthz` -> 200
-- [ ] `curl /readyz` -> postgres + valkey checks
-- [ ] `curl /swagger/index.html` -> Swagger UI
-- [ ] SIGTERM -> graceful drain
-- [ ] CI green on PR
+- [x] `docker compose up -d` brings up Postgres + Valkey + app
+- [x] `curl /healthz` -> 200
+- [x] `curl /readyz` -> postgres + valkey checks
+- [x] `curl /swagger/index.html` -> Swagger UI
+- [x] SIGTERM -> graceful drain
+- [x] CI green on PR
 
 ---
 
-## M4: Database Layer + Migrations
+## M4: Database Layer + Migrations ✅
 
 **Goal:** Wire generic Repository[T] to real Postgres via pgxpool. golang-migrate with advisory lock. sqlc codegen. First real DB round-trip.
 
@@ -213,18 +213,18 @@ internal/
 
 ### Verify
 
-- [ ] `make migrate-up` creates items table
-- [ ] `make sqlc` generates Go code
-- [ ] `Repository[Item].Create()` + `FindByID()` round-trips against real Postgres (integration test)
-- [ ] `BaseService[Item]` hooks fire during real CRUD (integration test)
-- [ ] `SoftDelete` sets `is_active = false` (integration test)
-- [ ] Per-call query timeout fires on slow queries
-- [ ] `make migrate-down` rolls back cleanly
-- [ ] CI green on PR (integration tests against service containers)
+- [x] `make migrate-up` creates items table
+- [x] `make sqlc` generates Go code
+- [x] `Repository[Item].Create()` + `FindByID()` round-trips against real Postgres (integration test)
+- [x] `BaseService[Item]` hooks fire during real CRUD (integration test)
+- [x] `SoftDelete` sets `is_active = false` (integration test)
+- [x] Per-call query timeout fires on slow queries
+- [x] `make migrate-down` rolls back cleanly
+- [x] CI green on PR (integration tests against service containers)
 
 ---
 
-## M5: Items Module (Example Domain)
+## M5: Items Module (Example Domain) ✅
 
 **Goal:** First domain module plugged into the modular monolith. Full handler -> service -> repository using the core BaseService[T]. End-to-end CRUD via REST.
 
@@ -239,21 +239,21 @@ internal/
 
 ### Verify
 
-- [ ] `POST /api/v1/items` -> 201 + envelope
-- [ ] `GET /api/v1/items` -> 200 + paginated
-- [ ] `GET /api/v1/items/:id` -> 200 + item
-- [ ] `PATCH /api/v1/items/:id` -> 200 + updated
-- [ ] `DELETE /api/v1/items/:id` -> 200 + soft-deleted
-- [ ] `PreCreate` hook rejects duplicate code -> 409 `CONFLICT`
-- [ ] Invalid body -> 400 `VALIDATION_ERROR`
-- [ ] Missing item -> 404 `NOT_FOUND`
-- [ ] Request-ID in every response + log
-- [ ] Swagger UI shows all item endpoints
-- [ ] CI green on PR
+- [x] `POST /api/v1/items` -> 201 + envelope
+- [x] `GET /api/v1/items` -> 200 + paginated
+- [x] `GET /api/v1/items/:id` -> 200 + item
+- [x] `PATCH /api/v1/items/:id` -> 200 + updated
+- [x] `DELETE /api/v1/items/:id` -> 200 + soft-deleted
+- [x] `PreCreate` hook rejects duplicate code -> 409 `CONFLICT`
+- [x] Invalid body -> 400 `VALIDATION_ERROR`
+- [x] Missing item -> 404 `NOT_FOUND`
+- [x] Request-ID in every response + log
+- [x] Swagger UI shows all item endpoints
+- [x] CI green on PR
 
 ---
 
-## M6: Valkey Client + Auth Module
+## M6: Valkey Client + Auth Module ✅
 
 **Goal:** Valkey client (used by auth for JWT blacklist + rate-limit). Auth module: JWT, API key, RBAC, users, roles, permissions. Two-tier rate-limit middleware. Second domain module proving the modular monolith pattern.
 
@@ -287,20 +287,20 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ### Verify
 
-- [ ] `POST /auth/login` -> 200 + tokens
-- [ ] Bad creds -> 401 `UNAUTHORIZED`
-- [ ] Items without token -> 401
-- [ ] Items with token -> 200
-- [ ] Refresh -> new pair
-- [ ] Logout -> blacklisted
-- [ ] API key via `X-API-Key` -> authenticated
-- [ ] User without permission -> 403 `FORBIDDEN`
-- [ ] Admin endpoints require superuser
-- [ ] Rate limit exceeded -> 429 `RATE_LIMITED`
-- [ ] Rate limit falls back to memory when Valkey down
-- [ ] Swagger shows all auth endpoints
-- [ ] `BaseService[User].PreCreate` fires (password hash, email check)
-- [ ] CI green on PR
+- [x] `POST /auth/login` -> 200 + tokens
+- [x] Bad creds -> 401 `UNAUTHORIZED`
+- [x] Items without token -> 401
+- [x] Items with token -> 200
+- [x] Refresh -> new pair
+- [x] Logout -> blacklisted
+- [x] API key via `X-API-Key` -> authenticated
+- [x] User without permission -> 403 `FORBIDDEN`
+- [x] Admin endpoints require superuser
+- [x] Rate limit exceeded -> 429 `RATE_LIMITED`
+- [x] Rate limit falls back to memory when Valkey down
+- [x] Swagger shows all auth endpoints
+- [x] `BaseService[User].PreCreate` fires (password hash, email check)
+- [x] CI green on PR
 
 ---
 
@@ -412,28 +412,28 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 ## Dependency Graph
 
 ```
-M0  (quality gates)         <-- CI/lint/hooks/goreleaser -- gates everything
+M0  (quality gates)         ✅  CI/lint/hooks/goreleaser -- gates everything
  |
-M1  (core foundation)       <-- config, logging, errors, envelope, base model,
+M1  (core foundation)       ✅  config, logging, errors, envelope, base model,
  |                               generic repo, base service + hooks, pagination,
  |                               module wiring pattern
-M2  (middleware stack)
+M2  (middleware stack)       ✅
  |
-M3  (HTTP server + swagger + docker)
+M3  (HTTP server + swagger) ✅
  |
-M4  (DB + migrations)       <-- base repo wired to real Postgres
+M4  (DB + migrations)       ✅  base repo wired to real Postgres
  |
-M5  (items module)           <-- first domain module, proves the pattern
+M5  (items module)           ✅  first domain module, proves the pattern
  |
-M6  (valkey + auth module)   <-- second module, proves interface contracts
+M6  (valkey + auth module)   ✅  JWT, API key, RBAC, rate-limit w/ fallback
  |
-M7  (cache stack)            <-- performance layer on items
+M7  (cache stack)            ⬚  performance layer on items
  |
-M8  (resilience)             <-- outbound safety
+M8  (resilience)             ⬚  outbound safety
  |
-M9  (crypto + AWS)           <-- optional infrastructure
+M9  (crypto + AWS)           ⬚  optional infrastructure
  |
-M10 (load tests + tag)       <-- v0.1.0
+M10 (load tests + tag)       ⬚  v0.1.0
 ```
 
 **Rule: every PR -> main requires green CI. No exceptions.**
