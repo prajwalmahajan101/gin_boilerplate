@@ -7,6 +7,17 @@ definitions:
       role:
         type: string
     type: object
+  auth.changePasswordReq:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      old_password:
+        type: string
+    required:
+    - new_password
+    - old_password
+    type: object
   auth.createKeyReq:
     properties:
       expires_at:
@@ -27,6 +38,13 @@ definitions:
     required:
     - email
     - password
+    type: object
+  auth.logoutReq:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
     type: object
   auth.refreshReq:
     properties:
@@ -316,6 +334,35 @@ paths:
       summary: Revoke own API key
       tags:
       - auth
+  /auth/change-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: old and new passwords
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.changePasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Change password (authenticated)
+      tags:
+      - auth
   /auth/login:
     post:
       consumes:
@@ -339,6 +386,31 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       summary: Log in with email and password
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: refresh token to revoke
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.logoutReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Log out (revoke tokens)
       tags:
       - auth
   /auth/refresh:
