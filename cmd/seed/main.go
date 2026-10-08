@@ -36,7 +36,7 @@ func run() error {
 	}
 
 	tokenSvc := auth.NewTokenService(cfg)
-	svc := auth.NewService(pool, tokenSvc)
+	svc := auth.NewService(pool, tokenSvc, nil)
 
 	email := "admin@example.com"
 	hash, err := auth.HashPassword(password)

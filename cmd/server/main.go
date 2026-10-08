@@ -37,11 +37,23 @@ func run(ctx context.Context) error {
 	log := logger.Setup()
 	log.InfoContext(ctx, "starting server", slog.Any("config", cfg))
 
-	// Postgres is optional: a set DATABASE_URL wires the pool and its readiness
-	// check; an empty one keeps the server bootable without a database.
 	tokenSvc := auth.NewTokenService(cfg)
 
-	var readyChecks map[string]httpserver.Check
+	vk, vkErr := valkey.New(cfg)
+	if vkErr != nil {
+		return vkErr
+	}
+	if vk != nil {
+		defer vk.Close()
+	}
+
+	blacklist := auth.NewBlacklist(vk)
+
+	readyChecks := make(map[string]httpserver.Check)
+	if vk != nil {
+		readyChecks["valkey"] = vk.Ping
+	}
+
 	var mods []modules.Module
 	var apiKeyValidator middleware.APIKeyValidator
 	if cfg.DatabaseURL != "" {
@@ -50,25 +62,13 @@ func run(ctx context.Context) error {
 			return perr
 		}
 		defer store.Close(pool)
-		readyChecks = map[string]httpserver.Check{"postgres": pool.Ping}
+		readyChecks["postgres"] = pool.Ping
 		apiKeySvc := auth.NewAPIKeyService(pool, cfg.APIKeyHashPepper)
 		apiKeyValidator = apiKeySvc.Validate
 		mods = append(mods,
-			auth.NewHandler(auth.NewService(pool, tokenSvc), apiKeySvc),
+			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, tokenSvc),
 			items.NewHandler(items.NewService(pool)),
 		)
-	}
-
-	vk, vkErr := valkey.New(cfg)
-	if vkErr != nil {
-		return vkErr
-	}
-	if vk != nil {
-		defer vk.Close()
-		if readyChecks == nil {
-			readyChecks = make(map[string]httpserver.Check)
-		}
-		readyChecks["valkey"] = vk.Ping
 	}
 
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
@@ -78,6 +78,7 @@ func run(ctx context.Context) error {
 		Modules:         mods,
 		TokenParser:     tokenSvc.AccessParser(),
 		APIKeyValidator: apiKeyValidator,
+		Blacklist:       blacklist.IsBlacklisted,
 		Valkey:          vk,
 	})
 	if err != nil {

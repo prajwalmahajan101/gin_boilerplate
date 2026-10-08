@@ -25,6 +25,7 @@ func TestGenerateAndParseAccess(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(42), claims.UserID)
 	require.Equal(t, "admin", claims.Role)
+	require.NotEmpty(t, claims.JTI)
 }
 
 func TestParseAccess_RejectsRefreshToken(t *testing.T) {
@@ -41,9 +42,10 @@ func TestGenerateAndParseRefresh(t *testing.T) {
 	tok, err := ts.GenerateRefresh(99)
 	require.NoError(t, err)
 
-	uid, err := ts.ParseRefresh(tok)
+	rc, err := ts.ParseRefresh(tok)
 	require.NoError(t, err)
-	require.Equal(t, int64(99), uid)
+	require.Equal(t, int64(99), rc.UserID)
+	require.NotEmpty(t, rc.JTI)
 }
 
 func TestParseRefresh_RejectsAccessToken(t *testing.T) {

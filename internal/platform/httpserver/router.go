@@ -19,9 +19,10 @@ type RouterConfig struct {
 	Logger          *slog.Logger
 	Modules         []modules.Module
 	ReadyChecks     map[string]Check
-	TokenParser     middleware.TokenParser     // nil = no auth enforcement
-	APIKeyValidator middleware.APIKeyValidator // nil = API key auth disabled
-	Valkey          *valkey.Client             // nil = rate limiting disabled
+	TokenParser     middleware.TokenParser      // nil = no auth enforcement
+	APIKeyValidator middleware.APIKeyValidator  // nil = API key auth disabled
+	Blacklist       middleware.BlacklistChecker // nil = no token blacklist
+	Valkey          *valkey.Client              // nil = rate limiting disabled
 }
 
 // NewRouter builds the gin engine: middleware chain, health probes, and the
@@ -58,12 +59,13 @@ func NewRouter(rc RouterConfig) (*gin.Engine, error) {
 	admin.Use(middleware.RateLimit(rc.Valkey, rc.Cfg.RateLimitRPM, "api"))
 
 	if rc.TokenParser != nil {
-		var authOpts []middleware.APIKeyValidator
-		if rc.APIKeyValidator != nil {
-			authOpts = append(authOpts, rc.APIKeyValidator)
+		authCfg := middleware.AuthConfig{
+			Parse:     rc.TokenParser,
+			APIKey:    rc.APIKeyValidator,
+			Blacklist: rc.Blacklist,
 		}
-		protected.Use(middleware.Auth(rc.TokenParser, authOpts...))
-		admin.Use(middleware.Auth(rc.TokenParser, authOpts...), middleware.RequireRole("admin"))
+		protected.Use(middleware.Auth(authCfg))
+		admin.Use(middleware.Auth(authCfg), middleware.RequireRole("admin"))
 	}
 
 	for _, m := range rc.Modules {

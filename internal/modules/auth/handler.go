@@ -18,6 +18,8 @@ type authService interface {
 	Register(ctx context.Context, email, password string) (TokenPair, error)
 	Login(ctx context.Context, email, password string) (TokenPair, error)
 	RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error)
+	Logout(ctx context.Context, accessJTI, refreshJTI string) error
+	ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) error
 	GetByIDOrFail(ctx context.Context, id int64) (User, error)
 	List(ctx context.Context, page, pageSize int) ([]User, pagination.Meta, error)
 	Update(ctx context.Context, m *User) error
@@ -33,10 +35,11 @@ type apiKeyService interface {
 type Handler struct {
 	svc    authService
 	apiKey apiKeyService
+	tokens *TokenService
 }
 
-func NewHandler(svc authService, apiKey apiKeyService) *Handler {
-	return &Handler{svc: svc, apiKey: apiKey}
+func NewHandler(svc authService, apiKey apiKeyService, tokens *TokenService) *Handler {
+	return &Handler{svc: svc, apiKey: apiKey, tokens: tokens}
 }
 
 func (h *Handler) RegisterRoutes(public, protected, admin *gin.RouterGroup) {
@@ -44,6 +47,10 @@ func (h *Handler) RegisterRoutes(public, protected, admin *gin.RouterGroup) {
 	g.POST("/register", h.register)
 	g.POST("/login", h.login)
 	g.POST("/refresh", h.refresh)
+
+	// Authenticated auth actions
+	protected.POST("/auth/logout", h.logout)
+	protected.POST("/auth/change-password", h.changePassword)
 
 	// Self-service API key management (authenticated users)
 	k := protected.Group("/auth/api-keys")
@@ -147,6 +154,84 @@ func (h *Handler) refresh(c *gin.Context) {
 		return
 	}
 	response.Success(c, http.StatusOK, "refreshed", pair)
+}
+
+// --- logout + password change ---
+
+type logoutReq struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type changePasswordReq struct {
+	OldPassword string `json:"old_password" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+func extractBearerJTI(c *gin.Context, tokens *TokenService) string {
+	hdr := c.GetHeader("Authorization")
+	if len(hdr) > 7 {
+		claims, err := tokens.ParseAccess(hdr[7:])
+		if err == nil {
+			return claims.JTI
+		}
+	}
+	return ""
+}
+
+// logout godoc
+// @Summary   Log out (revoke tokens)
+// @Tags      auth
+// @Accept    json
+// @Produce   json
+// @Param     body  body      logoutReq  true  "refresh token to revoke"
+// @Success   200   {object}  response.Envelope
+// @Failure   401   {object}  response.Envelope
+// @Router    /auth/logout [post]
+func (h *Handler) logout(c *gin.Context) {
+	var req logoutReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.ValidationError(err.Error()))
+		return
+	}
+	accessJTI := extractBearerJTI(c, h.tokens)
+	rc, err := h.tokens.ParseRefresh(req.RefreshToken)
+	if err != nil {
+		response.Error(c, apperr.Unauthorized("invalid refresh token"))
+		return
+	}
+	if err := h.svc.Logout(c.Request.Context(), accessJTI, rc.JTI); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "logged out", nil)
+}
+
+// changePassword godoc
+// @Summary   Change password (authenticated)
+// @Tags      auth
+// @Accept    json
+// @Produce   json
+// @Param     body  body      changePasswordReq  true  "old and new passwords"
+// @Success   200   {object}  response.Envelope
+// @Failure   400   {object}  response.Envelope
+// @Failure   401   {object}  response.Envelope
+// @Router    /auth/change-password [post]
+func (h *Handler) changePassword(c *gin.Context) {
+	uid, ok := callerID(c)
+	if !ok {
+		response.Error(c, apperr.Unauthorized("not authenticated"))
+		return
+	}
+	var req changePasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.ValidationError(err.Error()))
+		return
+	}
+	if err := h.svc.ChangePassword(c.Request.Context(), uid, req.OldPassword, req.NewPassword); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "password changed", nil)
 }
 
 // --- admin user CRUD ---

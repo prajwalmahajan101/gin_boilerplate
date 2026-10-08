@@ -11,14 +11,15 @@ import (
 
 type AuthService struct {
 	*store.BaseService[User]
-	repo   *Repository
-	tokens *TokenService
+	repo      *Repository
+	tokens    *TokenService
+	blacklist *Blacklist
 }
 
-func NewService(pool *pgxpool.Pool, tokens *TokenService) *AuthService {
+func NewService(pool *pgxpool.Pool, tokens *TokenService, blacklist *Blacklist) *AuthService {
 	repo := NewRepository(pool)
 	base := store.NewBaseService[User](repo.Repository, pool, authHooks{repo: repo})
-	return &AuthService{BaseService: base, repo: repo, tokens: tokens}
+	return &AuthService{BaseService: base, repo: repo, tokens: tokens, blacklist: blacklist}
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password string) (TokenPair, error) {
@@ -53,11 +54,14 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (TokenP
 }
 
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error) {
-	uid, err := s.tokens.ParseRefresh(refreshToken)
+	rc, err := s.tokens.ParseRefresh(refreshToken)
 	if err != nil {
 		return TokenPair{}, apperr.Unauthorized("invalid refresh token")
 	}
-	u, err := s.GetByIDOrFail(ctx, uid)
+	if rc.JTI != "" && s.blacklist.IsBlacklisted(ctx, rc.JTI) {
+		return TokenPair{}, apperr.Unauthorized("token revoked")
+	}
+	u, err := s.GetByIDOrFail(ctx, rc.UserID)
 	if err != nil {
 		return TokenPair{}, err
 	}
@@ -65,6 +69,29 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (To
 		return TokenPair{}, apperr.Unauthorized("account disabled")
 	}
 	return s.tokens.GeneratePair(u.ID, u.Role)
+}
+
+func (s *AuthService) ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) error {
+	u, err := s.GetByIDOrFail(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if !CheckPassword(u.PasswordHash, oldPassword) {
+		return apperr.Unauthorized("incorrect current password")
+	}
+	hash, err := HashPassword(newPassword)
+	if err != nil {
+		return apperr.InternalError(err)
+	}
+	u.PasswordHash = hash
+	return s.Update(ctx, &u)
+}
+
+func (s *AuthService) Logout(ctx context.Context, accessJTI, refreshJTI string) error {
+	if err := s.blacklist.Add(ctx, accessJTI, s.tokens.AccessTTL()); err != nil {
+		return err
+	}
+	return s.blacklist.Add(ctx, refreshJTI, s.tokens.RefreshTTL())
 }
 
 type authHooks struct {

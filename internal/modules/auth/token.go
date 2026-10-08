@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 )
@@ -12,6 +13,7 @@ import (
 type Claims struct {
 	UserID int64  `json:"uid"`
 	Role   string `json:"role"`
+	JTI    string `json:"jti"`
 }
 
 type TokenPair struct {
@@ -38,6 +40,7 @@ func (ts *TokenService) GenerateAccess(userID int64, role string) (string, error
 		"uid":  userID,
 		"role": role,
 		"typ":  "access",
+		"jti":  uuid.NewString(),
 		"exp":  jwt.NewNumericDate(time.Now().Add(ts.accessTTL)),
 		"iat":  jwt.NewNumericDate(time.Now()),
 	})
@@ -47,10 +50,14 @@ func (ts *TokenService) GenerateRefresh(userID int64) (string, error) {
 	return ts.sign(jwt.MapClaims{
 		"uid": userID,
 		"typ": "refresh",
+		"jti": uuid.NewString(),
 		"exp": jwt.NewNumericDate(time.Now().Add(ts.refreshTTL)),
 		"iat": jwt.NewNumericDate(time.Now()),
 	})
 }
+
+func (ts *TokenService) AccessTTL() time.Duration  { return ts.accessTTL }
+func (ts *TokenService) RefreshTTL() time.Duration { return ts.refreshTTL }
 
 func (ts *TokenService) GeneratePair(userID int64, role string) (TokenPair, error) {
 	access, err := ts.GenerateAccess(userID, role)
@@ -75,19 +82,25 @@ func (ts *TokenService) ParseAccess(tokenStr string) (Claims, error) {
 	return extractClaims(claims)
 }
 
-func (ts *TokenService) ParseRefresh(tokenStr string) (int64, error) {
+type RefreshClaims struct {
+	UserID int64
+	JTI    string
+}
+
+func (ts *TokenService) ParseRefresh(tokenStr string) (RefreshClaims, error) {
 	claims, err := ts.parse(tokenStr)
 	if err != nil {
-		return 0, err
+		return RefreshClaims{}, err
 	}
 	if claims["typ"] != "refresh" {
-		return 0, fmt.Errorf("token: expected refresh token")
+		return RefreshClaims{}, fmt.Errorf("token: expected refresh token")
 	}
 	uid, ok := claims["uid"].(float64)
 	if !ok {
-		return 0, fmt.Errorf("token: invalid uid")
+		return RefreshClaims{}, fmt.Errorf("token: invalid uid")
 	}
-	return int64(uid), nil
+	jti, _ := claims["jti"].(string)
+	return RefreshClaims{UserID: int64(uid), JTI: jti}, nil
 }
 
 func (ts *TokenService) sign(claims jwt.MapClaims) (string, error) {
@@ -111,13 +124,13 @@ func (ts *TokenService) parse(tokenStr string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
-func (ts *TokenService) AccessParser() func(string) (int64, string, error) {
-	return func(tokenStr string) (int64, string, error) {
+func (ts *TokenService) AccessParser() func(string) (int64, string, string, error) {
+	return func(tokenStr string) (int64, string, string, error) {
 		c, err := ts.ParseAccess(tokenStr)
 		if err != nil {
-			return 0, "", err
+			return 0, "", "", err
 		}
-		return c.UserID, c.Role, nil
+		return c.UserID, c.Role, c.JTI, nil
 	}
 }
 
@@ -127,5 +140,6 @@ func extractClaims(m jwt.MapClaims) (Claims, error) {
 		return Claims{}, fmt.Errorf("token: invalid uid")
 	}
 	role, _ := m["role"].(string)
-	return Claims{UserID: int64(uid), Role: role}, nil
+	jti, _ := m["jti"].(string)
+	return Claims{UserID: int64(uid), Role: role, JTI: jti}, nil
 }
