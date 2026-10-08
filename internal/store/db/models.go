@@ -31,6 +31,28 @@ type Item struct {
 	Notes     []byte
 }
 
+type Permission struct {
+	ID        int64
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	IsActive  bool
+	Resource  string
+	Action    string
+}
+
+type Role struct {
+	ID        int64
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	IsActive  bool
+	Name      string
+}
+
+type RolePermission struct {
+	RoleID       int64
+	PermissionID int64
+}
+
 type User struct {
 	ID           int64
 	CreatedAt    pgtype.Timestamptz
@@ -40,4 +62,9 @@ type User struct {
 	PasswordHash string
 	Role         string
 	LastLoginAt  pgtype.Timestamptz
+}
+
+type UserRole struct {
+	UserID int64
+	RoleID int64
 }
