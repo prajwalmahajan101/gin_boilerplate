@@ -10,6 +10,7 @@ import (
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/middleware"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/valkey"
 )
 
 // RouterConfig carries everything NewRouter needs to assemble the engine.
@@ -18,6 +19,8 @@ type RouterConfig struct {
 	Logger      *slog.Logger
 	Modules     []modules.Module
 	ReadyChecks map[string]Check
+	TokenParser middleware.TokenParser // nil = no auth enforcement
+	Valkey      *valkey.Client         // nil = rate limiting disabled
 }
 
 // NewRouter builds the gin engine: middleware chain, health probes, and the
@@ -45,8 +48,18 @@ func NewRouter(rc RouterConfig) (*gin.Engine, error) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	public := r.Group("/api/v1")
+	public.Use(middleware.RateLimit(rc.Valkey, rc.Cfg.LoginRateLimitRPM, "pub"))
+
 	protected := r.Group("/api/v1")
+	protected.Use(middleware.RateLimit(rc.Valkey, rc.Cfg.RateLimitRPM, "api"))
+
 	admin := r.Group("/api/v1/admin")
+	admin.Use(middleware.RateLimit(rc.Valkey, rc.Cfg.RateLimitRPM, "api"))
+
+	if rc.TokenParser != nil {
+		protected.Use(middleware.Auth(rc.TokenParser))
+		admin.Use(middleware.Auth(rc.TokenParser), middleware.RequireRole("admin"))
+	}
 
 	for _, m := range rc.Modules {
 		m.RegisterRoutes(public, protected, admin)
