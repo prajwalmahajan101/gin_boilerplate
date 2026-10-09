@@ -37,10 +37,10 @@ fmt: ## Format code with gofmt
 vet: ## Run go vet
 	go vet ./...
 
-hooks: ## Install git pre-commit hooks
-	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-commit
-	@echo "pre-commit hook installed (gofmt + go vet on staged .go)."
+hooks: ## Install pre-commit hooks (gofmt + vet/lint with -tags integration; govulncheck on push)
+	git config --unset core.hooksPath 2>/dev/null || true
+	pre-commit install --hook-type pre-commit --hook-type pre-push
+	@echo "pre-commit hooks installed. See .pre-commit-config.yaml"
 
 vuln: ## Run govulncheck
 	go install golang.org/x/vuln/cmd/govulncheck@latest
