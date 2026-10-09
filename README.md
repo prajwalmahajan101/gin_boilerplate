@@ -2,7 +2,7 @@
 
 Production-shaped Gin REST starter. Third leg of the boilerplate trio (Django / FastAPI / Gin).
 
-**Status:** In Progress -- building milestone by milestone.
+**Status:** v0.1.0 -- first release. In-process resilience; distributed/two-tier is v0.2 (see [ADR 0004](docs/adr/0004-resilience-scope.md)).
 
 ## What This Is
 
@@ -23,23 +23,58 @@ Forkable Go service skeleton with the same opinions as [django_boilerplate](http
 
 ## Stack
 
-Go 1.22+ / Gin / pgx + sqlc / golang-migrate / slog / golang-jwt / go-redis / golangci-lint / Docker (distroless) / GoReleaser
+Go 1.26 / Gin / pgx + sqlc / golang-migrate / slog / golang-jwt / go-redis / golangci-lint / k6 / Docker (distroless) / GoReleaser
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/prajwalch/gin_boilerplate.git
+git clone https://github.com/prajwalmahajan101/gin_boilerplate.git
 cd gin_boilerplate
-cp .env.example .env          # fill in required values
+cp .env.example .env           # fill in required values (set AUTH_TOKEN_SECRET)
 docker compose up -d           # postgres + valkey
 make migrate-up                # run migrations
 make dev                       # hot-reload server on :8080
 ```
 
+Check it's alive and open the API docs:
+
 ```bash
 curl localhost:8080/healthz    # liveness
 curl localhost:8080/readyz     # readiness (postgres + valkey)
-curl localhost:8080/swagger/index.html  # API docs
+open  localhost:8080/swagger/index.html  # interactive API docs
+```
+
+### First request: register → token → CRUD
+
+All `/api/v1/items` routes require a Bearer token. Register a user, grab the
+access token from the envelope, and use it:
+
+```bash
+BASE=localhost:8080/api/v1
+
+# 1. Register — the response envelope's data carries the JWT pair
+TOKEN=$(curl -s -X POST $BASE/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"me@example.com","password":"password123"}' \
+  | jq -r .data.access_token)
+
+# 2. Create an item
+curl -s -X POST $BASE/items \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"name":"first item","code":"ITEM-001"}' | jq
+
+# 3. List items
+curl -s $BASE/items -H "Authorization: Bearer $TOKEN" | jq
+```
+
+Every response is the same envelope: `{success, message, data, errors, request_id}`.
+Already have a user? `POST /api/v1/auth/login` returns the same token pair.
+
+### Load tests
+
+```bash
+make load-smoke                # 1 VU, full journey — quick sanity (server must be up)
+make load VUS=50 DURATION=2m   # ramped load (raise RATE_LIMIT_RPM on the server)
 ```
 
 ## Development
@@ -47,9 +82,10 @@ curl localhost:8080/swagger/index.html  # API docs
 ```bash
 make build      # compile to bin/server
 make test       # go test -race ./...
-make lint       # golangci-lint
-make fmt        # gofumpt
-make vet        # go vet
+make lint       # golangci-lint (--build-tags integration)
+make fmt        # gofmt -w .
+make vet        # go vet (-tags integration)
+make check      # vet + lint + test (full verification gate)
 make vuln       # govulncheck
 make hooks      # install pre-commit hooks
 make swagger    # regenerate OpenAPI spec
