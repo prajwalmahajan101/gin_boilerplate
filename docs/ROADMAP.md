@@ -409,6 +409,104 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ---
 
+# v0.2 — Observability, Audit, Background Jobs
+
+> Closes the three maturity gaps found comparing gin against the Django/FastAPI
+> siblings: observability (no metrics/traces/audit), background jobs (none), and
+> governance. Primitives are built as **framework-agnostic reusable kits** under
+> `pkg/` (importable by other Go services) with thin gin adapters in `internal/`,
+> mirroring the Python `resilience-kit` doctrine (ADR 0009). Full OpenTelemetry
+> (traces + metrics + logs over OTLP), a self-hosted **Grafana + Prometheus +
+> Tempo** stack (Loki is an optional logs profile), and an **asynq** job queue.
+
+## M11: OpenTelemetry Instrumentation
+
+**Goal:** Emit all three OTel signals (traces, metrics, logs) over OTLP with
+trace↔log correlation. Reusable `pkg/otelkit` core + gin adapter.
+
+### Extract
+
+| Target file | Source | Action |
+|---|---|---|
+| `pkg/otelkit/otelkit.go` | `[NEW]` reusable | Framework-agnostic bootstrap: resource (service.name/version/env), Tracer+Meter providers, OTLP exporters, batch processors, parent-ratio sampler, graceful shutdown. No gin import. |
+| `internal/platform/middleware/otel.go` | `[NEW]` | `otelgin` tracing + RED metrics (`http.server.request.duration` histogram + request counter) keyed by `c.FullPath()` / method / status. |
+| `internal/platform/logger/logger.go` | Update | slog handler injects `trace_id`/`span_id` from the active span; optional OTLP log bridge (`otelslog`) behind a flag. |
+| `internal/platform/httpserver/router.go` | Update | Mount `GET /metrics` (Prometheus pull, bearer-optional via `METRICS_AUTH_TOKEN`); install otel middleware in `Setup`. |
+| `internal/platform/reqcontext/timing.go` | Update | Wrap `TrackService`/`TrackRepo` to open child spans → traces show handler→service→repo. |
+| `internal/config/config.go` + `.env.example` | Update | `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`, `OTEL_TRACES_SAMPLER_RATIO`, `METRICS_AUTH_TOKEN`, `LOGS_OTLP_ENABLED`. |
+
+Deps: `go.opentelemetry.io/otel`, `otel/sdk`, OTLP trace+metric exporters, `otel/exporters/prometheus`, `contrib/.../gin/otelgin`.
+
+### Verify
+
+- [ ] Spans exported over OTLP; a request shows handler→service→repo hierarchy
+- [ ] Logs carry `trace_id`/`span_id` matching the span
+- [ ] `/metrics` exposes RED series bounded by route pattern; bearer enforced when set
+- [ ] `OTEL_ENABLED=false` disables cleanly (no exporter dial)
+- [ ] CI green on PR
+
+---
+
+## M12: Observability Stack + Audit Trail
+
+**Goal:** One-command local telemetry backend (Grafana + Prometheus + Tempo; Loki
+optional) + a durable, sanitized audit trail. Reusable `pkg/audit` core + gin adapter.
+
+### Extract
+
+| Target file | Source | Action |
+|---|---|---|
+| `deploy/observability/docker-compose.yml` | `[NEW]` | OTel Collector (OTLP fan-out) + Prometheus + Tempo + Grafana. Loki behind an optional `logs` compose profile (off by default). |
+| `deploy/observability/otel-collector.yaml` | `[NEW]` | Receivers: otlp; exporters: prometheus + otlp→tempo (+ loki with the logs profile); traces/metrics pipelines. |
+| `deploy/observability/grafana/` | `[NEW]` | Provisioned datasources (Prometheus, Tempo; Loki when enabled) + dashboards (RED/latency, trace explorer). |
+| `deploy/observability/{prometheus.yml,tempo.yaml}` (+ optional `loki.yaml`) | `[NEW]` | Backend configs. |
+| `Makefile` | Update | `obs-up` / `obs-down` (+ `obs-up-logs`); README "Observability" section. |
+| `migrations/000005_audit_logs.{up,down}.sql` | `[NEW]` | `audit_logs`(id, ts, request_id, actor_user_id, action, resource_type, resource_id, method, path, status, ip, metadata jsonb) + index (actor_user_id, ts). |
+| `pkg/audit/audit.go` | `[NEW]` reusable | Async sink: bounded channel + worker, non-blocking `Log(ctx, Event)` (drop-with-warn + counter when full), header/PII sanitization, graceful drain; pluggable `Store` interface. No gin import. |
+| `internal/platform/middleware/audit.go` | `[NEW]` | gin adapter: auto-record mutating requests (POST/PUT/PATCH/DELETE) on protected/admin; actor from `reqcontext.AuthClaims`. |
+| `internal/store` sqlc + `cmd/server/main.go` | Update | Postgres `audit.Store` impl; wiring; `AUDIT_ENABLED` config. |
+
+ADRs: **0007** observability stack (OTel + Collector + Grafana/Prometheus/Tempo, Loki optional) · **0009** reusable-kit extraction strategy.
+
+### Verify
+
+- [ ] `make obs-up` → Grafana shows live RED dashboard + traces from the app
+- [ ] (`obs-up-logs`) trace → correlated logs via shared `trace_id`
+- [ ] A mutating request writes an `audit_logs` row asynchronously (non-blocking)
+- [ ] An explicit `audit.Log` from a service records a domain event (e.g. role granted)
+- [ ] CI green on PR
+
+---
+
+## M13: Background Jobs + Governance
+
+**Goal:** Celery-equivalent async queue + supply-chain / governance gates. Reusable
+`pkg/jobs` (asynq) core + worker binary.
+
+### Extract
+
+| Target file | Source | Action |
+|---|---|---|
+| `pkg/jobs/` | `[NEW]` reusable | **asynq** (Valkey-backed): enqueue client, worker server + mux, typed task registry, retries/backoff, dead-letter (archived) queue, `asynq.Scheduler` ("beat"). Framework-agnostic; app registers handlers. |
+| `cmd/worker/main.go` | `[NEW]` | Worker binary; same config/DI as `cmd/server`. |
+| `internal/modules/auth` | Update | Enqueue the password-reset email as a task; worker sends via the SES helper (decouple request latency; retries). Idempotent handlers (at-least-once). |
+| `.goreleaser.yml` | Update | SBOM (syft) attached to each release. |
+| `.github/workflows/ci.yml` | Update | Coverage gate (fail under threshold). |
+| `scripts/` + CI | `[NEW]` | Architectural fitness checks (layering / banned-import), mirroring the Python siblings' guard scripts. |
+| `Makefile` | Update | `worker`, `sbom`, `coverage` targets. |
+
+ADR: **0008** background jobs (asynq vs river; at-least-once + idempotency + DLQ).
+
+### Verify
+
+- [ ] Enqueue → worker processes the task; failure retries then dead-letters
+- [ ] Password-reset email sent by the worker, not inline
+- [ ] Scheduler fires a periodic task (e.g. expired-token cleanup)
+- [ ] Release artifacts include an SBOM; CI fails under the coverage floor; a planted layering violation is caught
+- [ ] CI green on PR
+
+---
+
 ## Dependency Graph
 
 ```
@@ -433,7 +531,15 @@ M8  (resilience)             ✅  outbound safety
  |
 M9  (crypto + AWS)           ✅  optional infrastructure
  |
-M10 (load tests + tag)       ⬚  v0.1.0
+M10 (load tests + tag)       ✅  v0.1.0
+
+--- v0.2 ---
+
+M11 (otel instrumentation)   ⬚  traces + metrics + logs over OTLP
+ |
+M12 (observability stack)    ⬚  Collector + Grafana/Prometheus/Tempo (+ Loki opt) + audit trail
+ |
+M13 (background jobs + gov)  ⬚  asynq queue, SBOM, coverage + fitness gates
 ```
 
 **Rule: every PR -> main requires green CI. No exceptions.**
