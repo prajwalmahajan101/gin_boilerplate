@@ -1,5 +1,11 @@
 # gin_boilerplate
 
+[![CI](https://github.com/prajwalmahajan101/gin_boilerplate/actions/workflows/ci.yml/badge.svg)](https://github.com/prajwalmahajan101/gin_boilerplate/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/prajwalmahajan101/gin_boilerplate?sort=semver)](https://github.com/prajwalmahajan101/gin_boilerplate/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/prajwalmahajan101/gin_boilerplate)](go.mod)
+[![Go Report Card](https://goreportcard.com/badge/github.com/prajwalmahajan101/gin_boilerplate)](https://goreportcard.com/report/github.com/prajwalmahajan101/gin_boilerplate)
+[![License: MIT](https://img.shields.io/github/license/prajwalmahajan101/gin_boilerplate)](LICENSE)
+
 Production-shaped Gin REST starter. Third leg of the boilerplate trio (Django / FastAPI / Gin).
 
 **Status:** v0.1.0 -- first release. In-process resilience; distributed/two-tier is v0.2 (see [ADR 0004](docs/adr/0004-resilience-scope.md)).

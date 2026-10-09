@@ -404,8 +404,8 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 - [x] `golangci-lint run` clean
 - [x] `goreleaser check` valid
 - [x] README flow works end-to-end
-- [ ] Tag `v0.1.0`
-- [ ] Release artifacts published
+- [x] Tag `v0.1.0`
+- [x] Release artifacts published
 
 ---
 
