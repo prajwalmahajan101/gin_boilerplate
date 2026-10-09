@@ -1,0 +1,37 @@
+# Local pre-commit checks. Install with: pre-commit install --hook-type pre-commit --hook-type pre-push
+# Catches the classes of failure that otherwise only surface in CI — notably a
+# broken caller inside a //go:build integration test, which `go vet ./...`
+# (no tag) silently skips. Every Go check below runs WITH -tags integration so
+# tagged test files are compiled and type-checked locally.
+repos:
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt
+        entry: bash -c 'f=$(gofmt -l .); if [ -n "$f" ]; then echo "gofmt would reformat:"; echo "$f"; exit 1; fi'
+        language: system
+        files: '\.go$|^go\.(mod|sum)$'
+        pass_filenames: false
+
+      - id: go-vet-integration
+        name: go vet (-tags integration)
+        entry: go vet -tags integration ./...
+        language: system
+        files: '\.go$|^go\.(mod|sum)$'
+        pass_filenames: false
+
+      - id: golangci-lint
+        name: golangci-lint (-tags integration)
+        entry: golangci-lint run --build-tags integration
+        language: system
+        files: '\.go$|^go\.(mod|sum)$'
+        pass_filenames: false
+
+      # Slower + network-dependent: run before push, not on every commit.
+      - id: govulncheck
+        name: govulncheck
+        entry: govulncheck ./...
+        language: system
+        files: '\.go$|^go\.(mod|sum)$'
+        pass_filenames: false
+        stages: [pre-push]

@@ -4,12 +4,14 @@ import (
 	"context"
 	"log/slog"
 	"os"
+	"time"
 
 	_ "github.com/prajwalmahajan101/gin_boilerplate/docs/swagger" // registers the generated OpenAPI spec
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/auth"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/items"
+	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/cache"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/httpserver"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/logger"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/platform/middleware"
@@ -66,9 +68,20 @@ func run(ctx context.Context) error {
 		apiKeySvc := auth.NewAPIKeyService(pool, cfg.APIKeyHashPepper)
 		apiKeyValidator = apiKeySvc.Validate
 		rbacSvc := auth.NewRBACService(pool)
+		itemCache := cache.NewTiered("items", vk.Raw(), cache.TierConfig{
+			L1Enabled:            cfg.CacheL1Enabled,
+			L1Max:                cfg.CacheL1Max,
+			L1TTL:                time.Duration(cfg.CacheL1TTLS) * time.Second,
+			BreakerFailThreshold: cfg.CacheBreakerFailThreshold,
+			BreakerRecovery:      time.Duration(cfg.CacheBreakerRecoveryS) * time.Second,
+			TTLJitterPct:         cfg.CacheTTLJitterPct,
+		})
+		itemSvc := items.NewService(pool, itemCache,
+			time.Duration(cfg.CacheItemTTLS)*time.Second,
+			time.Duration(cfg.CacheNegTTLS)*time.Second)
 		mods = append(mods,
 			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, rbacSvc, tokenSvc),
-			items.NewHandler(items.NewService(pool)),
+			items.NewHandler(itemSvc),
 		)
 	}
 

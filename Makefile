@@ -3,7 +3,7 @@ MAIN   := ./cmd/server
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run dev test lint fmt vet hooks vuln \
+.PHONY: help build run dev test lint fmt vet hooks precommit vuln \
         migrate-up migrate-down migrate-create sqlc swagger \
         compose-up compose-down seed load-smoke load
 
@@ -28,19 +28,22 @@ dev: ## Start development server with hot-reload (requires air)
 test: ## Run all tests with race detector
 	go test -race -timeout 5m ./...
 
-lint: ## Run golangci-lint
-	golangci-lint run ./...
+lint: ## Run golangci-lint (incl. integration-tagged files)
+	golangci-lint run --build-tags integration ./...
 
 fmt: ## Format code with gofmt
 	gofmt -w .
 
-vet: ## Run go vet
-	go vet ./...
+vet: ## Run go vet (incl. integration-tagged files)
+	go vet -tags integration ./...
 
-hooks: ## Install git pre-commit hooks
-	git config core.hooksPath .githooks
-	chmod +x .githooks/pre-commit
-	@echo "pre-commit hook installed (gofmt + go vet on staged .go)."
+hooks: ## Install pre-commit hooks (gofmt + vet/lint with -tags integration; govulncheck on push)
+	git config --unset core.hooksPath 2>/dev/null || true
+	pre-commit install --hook-type pre-commit --hook-type pre-push
+	@echo "pre-commit hooks installed. See .pre-commit-config.yaml"
+
+precommit: ## Run all pre-commit hooks against every file
+	pre-commit run --all-files --hook-stage pre-commit
 
 vuln: ## Run govulncheck
 	go install golang.org/x/vuln/cmd/govulncheck@latest

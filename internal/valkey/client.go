@@ -34,6 +34,16 @@ func New(cfg *config.Config) (*Client, error) {
 	return &Client{rdb: rdb}, nil
 }
 
+// Raw returns the underlying *redis.Client for callers that need the native
+// client (e.g. the cache package's tiered backend). A nil *Client yields a nil
+// *redis.Client, which those callers treat as "Valkey disabled".
+func (c *Client) Raw() *redis.Client {
+	if c == nil {
+		return nil
+	}
+	return c.rdb
+}
+
 func (c *Client) Ping(ctx context.Context) error {
 	if c == nil {
 		return nil

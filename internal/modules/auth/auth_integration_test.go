@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,7 +51,7 @@ func e2eSetup(t *testing.T) testEnv {
 	r, err := httpserver.NewRouter(httpserver.RouterConfig{
 		Cfg:             cfg,
 		Logger:          slog.Default(),
-		Modules:         []modules.Module{handler, items.NewHandler(items.NewService(pool))},
+		Modules:         []modules.Module{handler, items.NewHandler(items.NewService(pool, nil, 5*time.Minute, 30*time.Second))},
 		TokenParser:     tokenSvc.AccessParser(),
 		APIKeyValidator: apiKeySvc.Validate,
 	})
