@@ -29,6 +29,16 @@ type Config struct {
 	// Valkey
 	ValkeyURL string `env:"VALKEY_URL" envDefault:""`
 
+	// Cache (items hot-read tier: L1 in-process → L2 Valkey → DB)
+	CacheItemTTLS             int  `env:"CACHE_ITEM_TTL_S" envDefault:"300"`           // single-item cache-aside TTL
+	CacheNegTTLS              int  `env:"CACHE_NEG_TTL_S" envDefault:"30"`             // tombstone TTL for absent ids (T28)
+	CacheL1Enabled            bool `env:"CACHE_L1_ENABLED" envDefault:"true"`          // front Valkey with a bounded L1 (NFR-R5)
+	CacheL1Max                int  `env:"CACHE_L1_MAX" envDefault:"10000"`             // L1 entry cap (LRU eviction)
+	CacheL1TTLS               int  `env:"CACHE_L1_TTL_S" envDefault:"30"`              // short L1 TTL (may serve slightly stale)
+	CacheTTLJitterPct         int  `env:"CACHE_TTL_JITTER_PCT" envDefault:"10"`        // ±pct spread on L2 TTL (avalanche, T24)
+	CacheBreakerFailThreshold int  `env:"CACHE_BREAKER_FAIL_THRESHOLD" envDefault:"5"` // Valkey failures before cache breaker OPENs
+	CacheBreakerRecoveryS     int  `env:"CACHE_BREAKER_RECOVERY_S" envDefault:"10"`    // cache breaker OPEN→HALF_OPEN probe interval
+
 	// Logging
 	LogLevel       string `env:"LOG_LEVEL" envDefault:"INFO"`
 	LogJSON        bool   `env:"LOG_JSON" envDefault:"true"`
@@ -72,6 +82,9 @@ func (c Config) LogValue() slog.Value {
 		slog.String("database_url", redacted),
 		slog.Int("db_max_conns", c.DBMaxConns),
 		slog.String("valkey_url", redacted),
+		slog.Int("cache_item_ttl_s", c.CacheItemTTLS),
+		slog.Bool("cache_l1_enabled", c.CacheL1Enabled),
+		slog.Int("cache_ttl_jitter_pct", c.CacheTTLJitterPct),
 		slog.String("log_level", c.LogLevel),
 		slog.Bool("log_json", c.LogJSON),
 		slog.Int64("max_body_bytes", c.MaxBodyBytes),
