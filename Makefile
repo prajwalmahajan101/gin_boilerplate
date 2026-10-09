@@ -3,7 +3,7 @@ MAIN   := ./cmd/server
 
 .DEFAULT_GOAL := help
 
-.PHONY: help build run dev test lint fmt vet hooks precommit vuln \
+.PHONY: help build run dev test lint fmt vet check hooks precommit vuln \
         migrate-up migrate-down migrate-create sqlc swagger \
         compose-up compose-down seed load-smoke load
 
@@ -36,6 +36,8 @@ fmt: ## Format code with gofmt
 
 vet: ## Run go vet (incl. integration-tagged files)
 	go vet -tags integration ./...
+
+check: vet lint test ## Run vet + lint + tests (full verification)
 
 hooks: ## Install pre-commit hooks (gofmt + vet/lint with -tags integration; govulncheck on push)
 	git config --unset core.hooksPath 2>/dev/null || true
