@@ -10,21 +10,21 @@ repos:
         name: gofmt
         entry: bash -c 'f=$(gofmt -l .); if [ -n "$f" ]; then echo "gofmt would reformat:"; echo "$f"; exit 1; fi'
         language: system
-        types: [go]
+        files: '\.go$|^go\.(mod|sum)$'
         pass_filenames: false
 
       - id: go-vet-integration
         name: go vet (-tags integration)
         entry: go vet -tags integration ./...
         language: system
-        types: [go]
+        files: '\.go$|^go\.(mod|sum)$'
         pass_filenames: false
 
       - id: golangci-lint
         name: golangci-lint (-tags integration)
         entry: golangci-lint run --build-tags integration
         language: system
-        types: [go]
+        files: '\.go$|^go\.(mod|sum)$'
         pass_filenames: false
 
       # Slower + network-dependent: run before push, not on every commit.
@@ -32,6 +32,6 @@ repos:
         name: govulncheck
         entry: govulncheck ./...
         language: system
-        types: [go]
+        files: '\.go$|^go\.(mod|sum)$'
         pass_filenames: false
         stages: [pre-push]
