@@ -21,6 +21,8 @@ type authService interface {
 	RefreshToken(ctx context.Context, refreshToken string) (TokenPair, error)
 	Logout(ctx context.Context, accessJTI, refreshJTI string) error
 	ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) error
+	RequestPasswordReset(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, token, newPassword string) error
 	GetByIDOrFail(ctx context.Context, id int64) (User, error)
 	List(ctx context.Context, page, pageSize int) ([]User, pagination.Meta, error)
 	Update(ctx context.Context, m *User) error
@@ -57,6 +59,8 @@ func (h *Handler) RegisterRoutes(public, protected, admin *gin.RouterGroup) {
 	g.POST("/register", h.register)
 	g.POST("/login", h.login)
 	g.POST("/refresh", h.refresh)
+	g.POST("/forgot-password", h.forgotPassword)
+	g.POST("/reset-password", h.resetPassword)
 
 	// Authenticated auth actions
 	protected.POST("/auth/logout", h.logout)
@@ -249,6 +253,60 @@ func (h *Handler) changePassword(c *gin.Context) {
 		return
 	}
 	response.Success(c, http.StatusOK, "password changed", nil)
+}
+
+type forgotPasswordReq struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type resetPasswordReq struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=8"`
+}
+
+// forgotPassword godoc
+// @Summary   Request a password reset token (emailed)
+// @Tags      auth
+// @Accept    json
+// @Produce   json
+// @Param     body  body      forgotPasswordReq  true  "email"
+// @Success   200   {object}  response.Envelope
+// @Failure   400   {object}  response.Envelope
+// @Router    /auth/forgot-password [post]
+func (h *Handler) forgotPassword(c *gin.Context) {
+	var req forgotPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.ValidationError(err.Error()))
+		return
+	}
+	// Always 200 — never reveal whether the email is registered.
+	if err := h.svc.RequestPasswordReset(c.Request.Context(), req.Email); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "if the email exists, a reset token has been sent", nil)
+}
+
+// resetPassword godoc
+// @Summary   Reset a password using a reset token
+// @Tags      auth
+// @Accept    json
+// @Produce   json
+// @Param     body  body      resetPasswordReq  true  "reset payload"
+// @Success   200   {object}  response.Envelope
+// @Failure   400   {object}  response.Envelope
+// @Router    /auth/reset-password [post]
+func (h *Handler) resetPassword(c *gin.Context) {
+	var req resetPasswordReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, apperr.ValidationError(err.Error()))
+		return
+	}
+	if err := h.svc.ResetPassword(c.Request.Context(), req.Token, req.NewPassword); err != nil {
+		response.Error(c, err)
+		return
+	}
+	response.Success(c, http.StatusOK, "password reset", nil)
 }
 
 // --- admin user CRUD ---

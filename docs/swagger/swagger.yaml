@@ -7,6 +7,13 @@ definitions:
       role:
         type: string
     type: object
+  auth.assignRoleReq:
+    properties:
+      role:
+        type: string
+    required:
+    - role
+    type: object
   auth.changePasswordReq:
     properties:
       new_password:
@@ -28,6 +35,13 @@ definitions:
         type: integer
     required:
     - name
+    type: object
+  auth.forgotPasswordReq:
+    properties:
+      email:
+        type: string
+    required:
+    - email
     type: object
   auth.loginReq:
     properties:
@@ -63,6 +77,17 @@ definitions:
     required:
     - email
     - password
+    type: object
+  auth.resetPasswordReq:
+    properties:
+      new_password:
+        minLength: 8
+        type: string
+      token:
+        type: string
+    required:
+    - new_password
+    - token
     type: object
   items.createReq:
     properties:
@@ -175,6 +200,18 @@ paths:
       summary: Revoke API key (admin)
       tags:
       - admin
+  /admin/roles:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List roles (admin)
+      tags:
+      - admin
   /admin/users:
     get:
       parameters:
@@ -280,6 +317,90 @@ paths:
       summary: Update user role or status (admin)
       tags:
       - admin
+  /admin/users/{id}/permissions:
+    get:
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List effective permissions for a user (admin)
+      tags:
+      - admin
+  /admin/users/{id}/roles:
+    get:
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: List roles for a user (admin)
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role to assign
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.assignRoleReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Assign role to user (admin)
+      tags:
+      - admin
+  /admin/users/{id}/roles/{role_id}:
+    delete:
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role id
+        in: path
+        name: role_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Remove role from user (admin)
+      tags:
+      - admin
   /auth/api-keys:
     get:
       produces:
@@ -361,6 +482,31 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       summary: Change password (authenticated)
+      tags:
+      - auth
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: email
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.forgotPasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Request a password reset token (emailed)
       tags:
       - auth
   /auth/login:
@@ -465,6 +611,31 @@ paths:
           schema:
             $ref: '#/definitions/response.Envelope'
       summary: Register a new user
+      tags:
+      - auth
+  /auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: reset payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/auth.resetPasswordReq'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/response.Envelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/response.Envelope'
+      summary: Reset a password using a reset token
       tags:
       - auth
   /items:
