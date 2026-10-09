@@ -8,6 +8,13 @@ While on `0.x`, the public API may change between minor versions.
 
 ## [Unreleased]
 
+### Added
+
+- Community-health files: `SECURITY.md`, `CODE_OF_CONDUCT.md` (Contributor
+  Covenant 2.1), `.github/CODEOWNERS`, `.github/dependabot.yml` (gomod +
+  github-actions + docker), a pull-request template, and bug/feature issue
+  templates.
+
 ## [0.1.0] - 2026-10-09
 
 First release — a production-shaped, forkable Gin REST boilerplate (the Go leg of

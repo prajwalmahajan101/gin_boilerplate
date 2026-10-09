@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/prajwalmahajan101/gin_boilerplate/security/advisories/new
+    about: Please report security issues privately, not as public issues (see SECURITY.md).
+  - name: Question / discussion
+    url: https://github.com/prajwalmahajan101/gin_boilerplate/discussions
+    about: Ask usage questions or propose ideas here.
