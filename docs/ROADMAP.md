@@ -304,7 +304,7 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ---
 
-## M7: Cache Stack
+## M7: Cache Stack ✅
 
 **Goal:** Tiered cache, singleflight, negative cache, TTL jitter. Wire into items service.
 
@@ -324,16 +324,16 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ### Verify
 
-- [ ] Second GET hits cache (no DB query)
-- [ ] Valkey down -> fail-open, items still served
-- [ ] Concurrent GETs -> singleflight (1 DB read)
-- [ ] Non-existent ID -> negative cache
-- [ ] TTLs have jitter
-- [ ] CI green on PR
+- [x] Second GET hits cache (no DB query)
+- [x] Valkey down -> fail-open, items still served
+- [x] Concurrent GETs -> singleflight (1 DB read)
+- [x] Non-existent ID -> negative cache
+- [x] TTLs have jitter
+- [x] CI green on PR
 
 ---
 
-## M8: Resilience Primitives
+## M8: Resilience Primitives ✅
 
 **Goal:** Circuit breaker, retry, SSRF guard, composed executor.
 
@@ -349,15 +349,15 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ### Verify
 
-- [ ] Breaker opens/half-opens correctly
-- [ ] Retry backs off with jitter
-- [ ] SSRF rejects private/loopback/link-local
-- [ ] Executor composes correctly
-- [ ] CI green on PR
+- [x] Breaker opens/half-opens correctly
+- [x] Retry backs off with jitter
+- [x] SSRF rejects private/loopback/link-local
+- [x] Executor composes correctly
+- [x] CI green on PR
 
 ---
 
-## M9: Crypto + AWS
+## M9: Crypto + AWS ✅
 
 **Goal:** AES-256-GCM field encryption, S3/SES helpers.
 
@@ -371,9 +371,9 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ### Verify
 
-- [ ] Encrypt/decrypt round-trips
-- [ ] Wrong key -> fails
-- [ ] CI green on PR
+- [x] Encrypt/decrypt round-trips
+- [x] Wrong key -> fails
+- [x] CI green on PR
 
 ---
 
@@ -398,12 +398,12 @@ Auth module satisfies this interface. Wired in `cmd/server/main.go`.
 
 ### Verify
 
-- [ ] `make load-smoke` passes
-- [ ] All 6 ADRs written
-- [ ] `go test -race ./...` clean
-- [ ] `golangci-lint run` clean
-- [ ] `goreleaser check` valid
-- [ ] README flow works end-to-end
+- [x] `make load-smoke` passes
+- [x] All 6 ADRs written
+- [x] `go test -race ./...` clean
+- [x] `golangci-lint run` clean
+- [x] `goreleaser check` valid
+- [x] README flow works end-to-end
 - [ ] Tag `v0.1.0`
 - [ ] Release artifacts published
 
@@ -427,11 +427,11 @@ M5  (items module)           ✅  first domain module, proves the pattern
  |
 M6  (valkey + auth module)   ✅  JWT, API key, RBAC, rate-limit w/ fallback
  |
-M7  (cache stack)            ⬚  performance layer on items
+M7  (cache stack)            ✅  performance layer on items
  |
-M8  (resilience)             ⬚  outbound safety
+M8  (resilience)             ✅  outbound safety
  |
-M9  (crypto + AWS)           ⬚  optional infrastructure
+M9  (crypto + AWS)           ✅  optional infrastructure
  |
 M10 (load tests + tag)       ⬚  v0.1.0
 ```

@@ -75,8 +75,8 @@ compose-up: ## Start docker-compose stack
 compose-down: ## Stop docker-compose stack
 	docker compose down
 
-load-smoke: ## Run k6 smoke test (stub -- wired in M10)
-	@echo "stub: not yet wired (M10)"
+load-smoke: ## Run k6 smoke test (server must be running + migrated)
+	k6 run loadtest/smoke.js
 
-load: ## Run k6 load test (stub -- wired in M10)
-	@echo "stub: not yet wired (M10)"
+load: ## Run k6 load test (override: make load VUS=50 DURATION=2m)
+	k6 run -e VUS=$(VUS) -e DURATION=$(DURATION) loadtest/load.js
