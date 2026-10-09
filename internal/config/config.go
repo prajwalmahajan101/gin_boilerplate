@@ -68,6 +68,16 @@ type Config struct {
 
 	// AWS
 	SecretsManagerSecretID string `env:"SECRETS_MANAGER_SECRET_ID" envDefault:""`
+	AWSRegion              string `env:"AWS_REGION" envDefault:"ap-south-1"`
+	S3Bucket               string `env:"S3_BUCKET" envDefault:""`
+	SESFromEmail           string `env:"SES_FROM_EMAIL" envDefault:""`
+
+	// Crypto
+	FieldEncryptionKey string `env:"FIELD_ENCRYPTION_KEY" envDefault:""` // base64 32-byte AES-256 key
+
+	// Password reset
+	PasswordResetTTLMin  int    `env:"PASSWORD_RESET_TTL_M" envDefault:"30"`
+	PasswordResetURLBase string `env:"PASSWORD_RESET_URL_BASE" envDefault:""` // optional; empty = email the raw token
 }
 
 // IsProd reports whether the server runs in a production environment.
@@ -96,6 +106,11 @@ func (c Config) LogValue() slog.Value {
 		slog.Int("retry_max", c.RetryMax),
 		slog.Int("breaker_fail_threshold", c.BreakerFailThreshold),
 		slog.Int("rate_limit_rpm", c.RateLimitRPM),
+		slog.String("aws_region", c.AWSRegion),
+		slog.String("s3_bucket", c.S3Bucket),
+		slog.String("ses_from_email", c.SESFromEmail),
+		slog.String("field_encryption_key", redacted),
+		slog.Int("password_reset_ttl_m", c.PasswordResetTTLMin),
 	)
 }
 
