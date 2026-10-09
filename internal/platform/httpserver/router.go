@@ -23,6 +23,7 @@ type RouterConfig struct {
 	TokenParser       middleware.TokenParser       // nil = no auth enforcement
 	APIKeyValidator   middleware.APIKeyValidator   // nil = API key auth disabled
 	Blacklist         middleware.BlacklistChecker  // nil = no token blacklist
+	UserEpoch         middleware.UserEpochChecker  // nil = no user-level session revocation
 	PermissionChecker middleware.PermissionChecker // nil = no permission enforcement
 	Valkey            *valkey.Client               // nil = Valkey-based rate limiting disabled
 }
@@ -74,6 +75,7 @@ func NewRouter(rc RouterConfig) (*gin.Engine, error) {
 			Parse:     rc.TokenParser,
 			APIKey:    rc.APIKeyValidator,
 			Blacklist: rc.Blacklist,
+			UserEpoch: rc.UserEpoch,
 		}
 		protected.Use(middleware.Auth(authCfg))
 		admin.Use(middleware.Auth(authCfg), middleware.RequireRole("admin"))
