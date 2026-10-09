@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -14,12 +16,35 @@ type AuthService struct {
 	repo      *Repository
 	tokens    *TokenService
 	blacklist *Blacklist
+
+	// Password-reset deps (optional; nil sender/reset disables the flow).
+	sender       EmailSender
+	reset        resetStore
+	resetTTL     time.Duration
+	resetURLBase string
 }
 
-func NewService(pool *pgxpool.Pool, tokens *TokenService, blacklist *Blacklist) *AuthService {
+// ResetDeps bundles the optional password-reset collaborators.
+type ResetDeps struct {
+	Sender  EmailSender
+	Store   resetStore
+	TTL     time.Duration
+	URLBase string
+}
+
+func NewService(pool *pgxpool.Pool, tokens *TokenService, blacklist *Blacklist, reset ResetDeps) *AuthService {
 	repo := NewRepository(pool)
 	base := store.NewBaseService[User](repo.Repository, pool, authHooks{repo: repo})
-	return &AuthService{BaseService: base, repo: repo, tokens: tokens, blacklist: blacklist}
+	return &AuthService{
+		BaseService:  base,
+		repo:         repo,
+		tokens:       tokens,
+		blacklist:    blacklist,
+		sender:       reset.Sender,
+		reset:        reset.Store,
+		resetTTL:     reset.TTL,
+		resetURLBase: reset.URLBase,
+	}
 }
 
 func (s *AuthService) Register(ctx context.Context, email, password string) (TokenPair, error) {
@@ -84,7 +109,87 @@ func (s *AuthService) ChangePassword(ctx context.Context, userID int64, oldPassw
 		return apperr.InternalError(err)
 	}
 	u.PasswordHash = hash
-	return s.Update(ctx, &u)
+	if err := s.Update(ctx, &u); err != nil {
+		return err
+	}
+	s.revokeSessions(ctx, userID)
+	return nil
+}
+
+// RequestPasswordReset issues a reset token and emails it. It never reveals
+// whether the email belongs to a real account (no user enumeration): an unknown
+// email returns nil without sending anything.
+func (s *AuthService) RequestPasswordReset(ctx context.Context, email string) error {
+	if s.sender == nil || s.reset == nil {
+		return apperr.ServiceUnavailable("password reset not configured")
+	}
+	row, found, err := s.repo.GetByEmail(ctx, email)
+	if err != nil {
+		return err
+	}
+	if !found || !row.IsActive {
+		return nil
+	}
+	token, hash, err := newResetToken()
+	if err != nil {
+		return apperr.InternalError(err)
+	}
+	if err := s.reset.PutToken(ctx, hash, row.ID, s.resetTTL); err != nil {
+		return err
+	}
+	body := s.resetEmailBody(token)
+	if err := s.sender.SendEmail(ctx, email, "Password reset", body); err != nil {
+		slog.ErrorContext(ctx, "password reset email failed", slog.Int64("user_id", row.ID), slog.Any("error", err))
+		return apperr.InternalError(err)
+	}
+	return nil
+}
+
+// ResetPassword consumes a reset token, sets the new password, and revokes all
+// of the user's existing sessions.
+func (s *AuthService) ResetPassword(ctx context.Context, token, newPassword string) error {
+	if s.reset == nil {
+		return apperr.ServiceUnavailable("password reset not configured")
+	}
+	uid, found, err := s.reset.TakeToken(ctx, hashToken(token))
+	if err != nil {
+		return err
+	}
+	if !found {
+		return apperr.ValidationError("invalid or expired reset token")
+	}
+	u, err := s.GetByIDOrFail(ctx, uid)
+	if err != nil {
+		return err
+	}
+	hash, err := HashPassword(newPassword)
+	if err != nil {
+		return apperr.InternalError(err)
+	}
+	u.PasswordHash = hash
+	if err := s.Update(ctx, &u); err != nil {
+		return err
+	}
+	s.revokeSessions(ctx, uid)
+	return nil
+}
+
+// revokeSessions marks all tokens issued before now as revoked for uid. The
+// epoch outlives the longest-lived (refresh) token, after which it is moot.
+func (s *AuthService) revokeSessions(ctx context.Context, uid int64) {
+	if s.reset == nil {
+		return
+	}
+	if err := s.reset.SetEpoch(ctx, uid, s.tokens.RefreshTTL()); err != nil {
+		slog.ErrorContext(ctx, "revoke sessions failed", slog.Int64("user_id", uid), slog.Any("error", err))
+	}
+}
+
+func (s *AuthService) resetEmailBody(token string) string {
+	if s.resetURLBase != "" {
+		return "Reset your password: " + s.resetURLBase + "?token=" + token
+	}
+	return "Your password reset token is:\n\n" + token + "\n\nPOST it with your new password to /api/v1/auth/reset-password."
 }
 
 func (s *AuthService) Logout(ctx context.Context, accessJTI, refreshJTI string) error {

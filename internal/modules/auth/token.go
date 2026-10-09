@@ -11,9 +11,10 @@ import (
 )
 
 type Claims struct {
-	UserID int64  `json:"uid"`
-	Role   string `json:"role"`
-	JTI    string `json:"jti"`
+	UserID   int64  `json:"uid"`
+	Role     string `json:"role"`
+	JTI      string `json:"jti"`
+	IssuedAt int64  `json:"iat"`
 }
 
 type TokenPair struct {
@@ -124,13 +125,13 @@ func (ts *TokenService) parse(tokenStr string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
-func (ts *TokenService) AccessParser() func(string) (int64, string, string, error) {
-	return func(tokenStr string) (int64, string, string, error) {
+func (ts *TokenService) AccessParser() func(string) (int64, string, string, int64, error) {
+	return func(tokenStr string) (int64, string, string, int64, error) {
 		c, err := ts.ParseAccess(tokenStr)
 		if err != nil {
-			return 0, "", "", err
+			return 0, "", "", 0, err
 		}
-		return c.UserID, c.Role, c.JTI, nil
+		return c.UserID, c.Role, c.JTI, c.IssuedAt, nil
 	}
 }
 
@@ -141,5 +142,6 @@ func extractClaims(m jwt.MapClaims) (Claims, error) {
 	}
 	role, _ := m["role"].(string)
 	jti, _ := m["jti"].(string)
-	return Claims{UserID: int64(uid), Role: role, JTI: jti}, nil
+	iat, _ := m["iat"].(float64)
+	return Claims{UserID: int64(uid), Role: role, JTI: jti, IssuedAt: int64(iat)}, nil
 }

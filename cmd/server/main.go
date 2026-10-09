@@ -7,6 +7,7 @@ import (
 	"time"
 
 	_ "github.com/prajwalmahajan101/gin_boilerplate/docs/swagger" // registers the generated OpenAPI spec
+	awshelper "github.com/prajwalmahajan101/gin_boilerplate/internal/aws"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/config"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules"
 	"github.com/prajwalmahajan101/gin_boilerplate/internal/modules/auth"
@@ -51,6 +52,29 @@ func run(ctx context.Context) error {
 
 	blacklist := auth.NewBlacklist(vk)
 
+	// Password-reset: Valkey holds the single-use tokens and the per-user
+	// revocation epoch; SES (if configured) delivers the token email.
+	var resetStore *auth.ResetStore
+	if vk != nil {
+		resetStore = auth.NewResetStore(vk)
+	}
+	var emailSender auth.EmailSender
+	if cfg.SESFromEmail != "" {
+		awsCfg, awsErr := awshelper.Config(ctx, cfg.AWSRegion)
+		if awsErr != nil {
+			return awsErr
+		}
+		emailSender = awshelper.NewSES(awsCfg, cfg.SESFromEmail)
+	}
+	resetDeps := auth.ResetDeps{
+		Sender:  emailSender,
+		TTL:     time.Duration(cfg.PasswordResetTTLMin) * time.Minute,
+		URLBase: cfg.PasswordResetURLBase,
+	}
+	if resetStore != nil { // avoid a typed-nil interface (would defeat the nil check)
+		resetDeps.Store = resetStore
+	}
+
 	readyChecks := make(map[string]httpserver.Check)
 	if vk != nil {
 		readyChecks["valkey"] = vk.Ping
@@ -80,7 +104,7 @@ func run(ctx context.Context) error {
 			time.Duration(cfg.CacheItemTTLS)*time.Second,
 			time.Duration(cfg.CacheNegTTLS)*time.Second)
 		mods = append(mods,
-			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist), apiKeySvc, rbacSvc, tokenSvc),
+			auth.NewHandler(auth.NewService(pool, tokenSvc, blacklist, resetDeps), apiKeySvc, rbacSvc, tokenSvc),
 			items.NewHandler(itemSvc),
 		)
 	}
@@ -93,6 +117,7 @@ func run(ctx context.Context) error {
 		TokenParser:     tokenSvc.AccessParser(),
 		APIKeyValidator: apiKeyValidator,
 		Blacklist:       blacklist.IsBlacklisted,
+		UserEpoch:       userEpochChecker(resetStore),
 		Valkey:          vk,
 	})
 	if err != nil {
@@ -101,4 +126,13 @@ func run(ctx context.Context) error {
 
 	srv := httpserver.New(cfg, r)
 	return srv.RunWithGracefulShutdown(ctx)
+}
+
+// userEpochChecker adapts the reset store's Epoch lookup to the middleware hook,
+// returning nil when there is no store so session revocation is simply skipped.
+func userEpochChecker(rs *auth.ResetStore) middleware.UserEpochChecker {
+	if rs == nil {
+		return nil
+	}
+	return rs.Epoch
 }
