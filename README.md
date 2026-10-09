@@ -127,7 +127,14 @@ internal/
 - [PRD](docs/PRD.md) -- requirements, contracts, schema
 - [Roadmap](docs/ROADMAP.md) -- extraction plan with source references
 - [ADRs](docs/adr/) -- architecture decision records
+- [Changelog](CHANGELOG.md) -- release history
+- [Contributing](CONTRIBUTING.md) -- workflow, conventions, checks
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). In short: branch off `main`, use
+Conventional Commits, run `make check`, open a PR with green CI.
 
 ## License
 
-MIT
+[MIT](LICENSE)
